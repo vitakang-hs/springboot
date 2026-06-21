@@ -19,10 +19,64 @@ repositories {
     mavenCentral()
 }
 
+ext {
+    querydslVersion = '7.3.0'
+}
+
 dependencies {
+    /*
+    * implementation - 컴파일 + 실행 둘다
+    * runtimeOnly - 실행할때만 (JPA/JDBC가 내부적으로 알아서 드라이버를 찾음)
+    * compileOnly - 컴파일 할때만 (ex. Lombok)
+    * testImplementation - 테스트 코드에서만, 컴파일 + 실행 둘다 (ex. JUnit, Mockito)
+    * annotationProcessor - 컴파일 시점에 코드를 자동 생성 (ex. Lombok, QueryDSL Q클래스)
+    * */
+
+    // Spring
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'   // @Valid, DTO 검증
+
+    // Security
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // Redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // QueryDSL (OpenFeign 포크 - 기존 com.querydsl은 유지보수 중단, Jakarta/Hibernate 7.x 호환)
+    implementation "io.github.openfeign.querydsl:querydsl-jpa:${querydslVersion}"
+    annotationProcessor "io.github.openfeign.querydsl:querydsl-apt:${querydslVersion}:jpa"
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+
+    // Swagger (API 문서)
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
+
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    runtimeOnly 'org.postgresql:postgresql'
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+
+    // 테스트
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'com.h2database:h2'
+}
+
+// QueryDSL이 생성하는 Q클래스 소스 경로를 빌드 산출물에 포함
+sourceSets {
+    main {
+        java {
+            srcDirs += 'build/generated/sources/annotationProcessor/java/main'
+        }
+    }
 }
 
 tasks.named('test') {

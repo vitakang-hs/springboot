@@ -1,0 +1,48 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/your_db
+    username: your_username
+    password: your_password
+    driver-class-name: org.postgresql.Driver
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      # 로컬에 비밀번호 없이 띄우셨다면 password는 생략 가능
+      # password: ${REDIS_PASSWORD:}
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: { Google Cloud Console에서 발급받은 클라이언트 ID }
+            client-secret: { Google Cloud Console에서 발급받은 클라이언트 보안 비밀 }
+            scope:
+              - email
+              - profile
+
+# Swagger 관련 선택 설정 (필요 시)
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui/index.html
+
+hyunsu:
+  jwt:
+    secret: your_secret
+    access-token-validity-minutes: 30
+    refresh-token-validity-days: 14
+  crypto:
+    aes:
+      secret: your_aes
+      salt: your_salt
+    hash:
+      salt: your_hash
+  auth:
+    cookie:
+      secure: false   # 로컬/개발(HTTP)은 false. 운영(HTTPS) 프로필에서 true로 오버라이드 예정

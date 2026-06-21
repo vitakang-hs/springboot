@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>hyunsu-delveloper</title>
+    <link rel="stylesheet" href="/css/common.css">
+</head>
+<body>
+
+<canvas id="background"></canvas>
+
+<div class="center">
+    <h1>회원가입</h1>
+    <p class="sub">Create Account</p>
+
+    <div class="login-card">
+        <form id="signupForm" novalidate>
+            <div class="field field-with-button">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                </svg>
+                <input type="text" id="username" name="username" placeholder="아이디 (영문/숫자 4~20자)" autocomplete="username" maxlength="20">
+                <button type="button" class="btn-inline" id="checkUsernameBtn" disabled>중복확인</button>
+            </div>
+            <p class="field-error" id="usernameError"></p>
+
+            <div class="field">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <input type="password" id="password" name="password" placeholder="비밀번호 (6자 이상)" autocomplete="new-password">
+            </div>
+            <p class="field-error" id="passwordError"></p>
+
+            <div class="field">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <input type="password" id="passwordConfirm" name="passwordConfirm" placeholder="비밀번호 확인" autocomplete="new-password">
+            </div>
+            <p class="field-error" id="passwordConfirmError"></p>
+
+            <div class="field field-with-button">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="4" width="20" height="16" rx="2"/>
+                    <path d="m22 7-10 6L2 7"/>
+                </svg>
+                <input type="email" id="email" name="email" placeholder="이메일" autocomplete="email">
+                <button type="button" class="btn-inline" id="sendCodeBtn" disabled>인증코드 발송</button>
+            </div>
+
+            <div class="field field-with-button">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 8v4l3 3"/>
+                    <circle cx="12" cy="12" r="9"/>
+                </svg>
+                <input type="text" id="emailCode" name="emailCode" placeholder="이메일 인증코드 입력" disabled maxlength="6">
+                <button type="button" class="btn-inline" id="verifyCodeBtn" disabled>확인</button>
+            </div>
+            <p class="field-error" id="emailCodeError"></p>
+            <p class="field-timer" id="codeTimer"></p>
+
+            <button type="submit" class="btn-primary" id="submitBtn" disabled>회원가입</button>
+        </form>
+
+        <p class="signup-hint">이미 계정이 있으신가요? <a href="/">로그인</a></p>
+    </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script src="/js/background.js"></script>
+<script src="/js/signup.js"></script>
+</body>
+</html>

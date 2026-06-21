@@ -1,0 +1,16 @@
+spring:
+  profiles:
+    active: local
+
+  jpa:
+    open-in-view: false   # 화면 렌더링 중 DB 커넥션을 계속 물고 있는 것을 방지
+    hibernate:
+      ddl-auto: validate    # update → validate로 변경! Flyway가 만든 테이블과 Entity가 일치하는지만 검사
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration

@@ -1,0 +1,344 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    width: 100vw;
+    height: 100vh;
+    background: #05050f;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", sans-serif;
+}
+
+canvas#background {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+}
+
+.center {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    padding: 24px;
+}
+
+h1 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 600;
+    color: #f5f3ff;
+    letter-spacing: 0.02em;
+    opacity: 0;
+    animation: fadeUp 1.6s ease forwards;
+    text-shadow: 0 0 24px rgba(168, 159, 207, 0.35);
+}
+
+p.sub {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #8c80b8;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    opacity: 0;
+    animation: fadeUp 1.6s ease 0.4s forwards;
+}
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== 로그인 카드 ===== */
+
+.login-card {
+    margin-top: 36px;
+    width: 100%;
+    max-width: 360px;
+    padding: 36px 32px 30px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    animation: fadeUp 1.6s ease 0.6s forwards;
+}
+
+.field {
+    position: relative;
+    margin-bottom: 6px;
+}
+
+.field svg {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    stroke: #9b91c4;
+    pointer-events: none;
+}
+
+.field input {
+    width: 100%;
+    padding: 13px 16px 13px 44px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    color: #f5f3ff;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.field input::placeholder {
+    color: #786f9c;
+}
+
+.field input:focus {
+    border-color: #8b7fd1;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* 크롬 자동완성 시 흰 배경으로 강제 변경되는 문제 방지 */
+.field input:-webkit-autofill,
+.field input:-webkit-autofill:hover,
+.field input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #f5f3ff;
+    -webkit-box-shadow: 0 0 0 1000px rgba(40, 32, 70, 0.9) inset;
+    box-shadow: 0 0 0 1000px rgba(40, 32, 70, 0.9) inset;
+    caret-color: #f5f3ff;
+    transition: background-color 9999s ease-in-out 0s;
+}
+
+.field input:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.field input.invalid {
+    border-color: #e0607a;
+    background: rgba(224, 96, 122, 0.08);
+}
+
+.field-error {
+    min-height: 16px;
+    margin: 0 2px 10px;
+    font-size: 11.5px;
+    color: #f17a92;
+    opacity: 0;
+    transform: translateY(-2px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.field-error.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.field-timer {
+    min-height: 16px;
+    margin: 0 2px 14px;
+    font-size: 11.5px;
+    color: #9b91c4;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.field-timer.show {
+    opacity: 1;
+}
+
+.field-timer.expired {
+    color: #f17a92;
+}
+
+.field-with-button input {
+    padding-right: 108px;
+}
+
+.btn-inline {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 7px 10px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(139, 127, 209, 0.25);
+    color: #d8d0f5;
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.btn-inline:hover {
+    background: rgba(139, 127, 209, 0.4);
+}
+
+.btn-inline:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.btn-inline-success {
+    background: rgba(94, 196, 140, 0.22) !important;
+    color: #8fe0b3 !important;
+    opacity: 1 !important;
+}
+
+.row-end {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-bottom: 22px;
+    font-size: 12.5px;
+}
+
+.link-muted {
+    color: #8c80b8;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.link-muted:hover {
+    color: #c9c0ee;
+}
+
+.btn-primary {
+    width: 100%;
+    padding: 13px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #8b7fd1, #5d4fb8);
+    color: #fff;
+    font-size: 14.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: filter 0.2s ease, transform 0.15s ease;
+}
+
+.btn-primary:hover {
+    filter: brightness(1.08);
+}
+
+.btn-primary:active {
+    transform: translateY(1px);
+}
+
+.btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    filter: none;
+    transform: none;
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 22px 0 18px;
+    color: #6c628f;
+    font-size: 11.5px;
+}
+
+.divider::before,
+.divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.social-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.btn-social {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 11px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: #e5e0f7;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.btn-social:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-social svg {
+    width: 16px;
+    height: 16px;
+}
+
+.signup-hint {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 12.5px;
+    color: #786f9c;
+}
+
+.signup-hint a {
+    color: #b6aedd;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.signup-hint a:hover {
+    color: #d8d0f5;
+}
+
+/* ===== 메인 페이지 상단 바 (우측 상단 사용자 정보 + 로그아웃) ===== */
+
+.top-bar {
+    position: fixed;
+    top: 24px;
+    right: 28px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.top-bar-user {
+    font-size: 13px;
+    color: #c9c0ee;
+    letter-spacing: 0.02em;
+}
+
+.btn-logout {
+    padding: 8px 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.05);
+    color: #d8d0f5;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.btn-logout:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.24);
+}
