@@ -46,7 +46,7 @@ public class TokenReissueCommandService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new CustomException(ErrorCode.MEMBER_NOT_FOUND));
 
-        if (member.isLoginable()) {
+        if (!member.isLoginable()) {
             throw new CustomException(ErrorCode.ACCOUNT_LOCKED);
         }
 

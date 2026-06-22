@@ -52,9 +52,10 @@ public class SecurityConfig {
                         // 화면 (정적 리소스 + 정적 HTML)
                         .requestMatchers(
                                 "/", "/signup", "/find-password", "/oauth/success", "/main",
+                                "/board", "/board/**",
                                 "/*.html",
                                 "/css/**", "/js/**",
-                                "/error"
+                                "/error/**"
                         ).permitAll()
 
                         // Swagger

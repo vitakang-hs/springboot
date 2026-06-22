@@ -61,6 +61,7 @@ public class JwtProvider {
 
         return Jwts.builder()
                 .subject(String.valueOf(memberId))
+                .claim(CLAIM_MEMBER_ID, memberId)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(secretKey)

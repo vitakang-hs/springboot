@@ -5,34 +5,44 @@ import org.springframework.web.bind.annotation.GetMapping;
 
 /**
  * 정적 HTML(static)을 깔끔한 URL로 매핑해주는 View Controller.
- * 실제 데이터 처리는 하지 않고 forward만 담당한다.
  *
- * Spring Security 적용 시, 아래 경로들은 permitAll() 처리 필요:
- *   "/", "/signup", "/oauth/success", "/main", "/css/**", "/js/**"
+ * 정적 파일 폴더 구조:
+ *   static/index.html              → Spring Boot Welcome Page로 자동 서빙
+ *   static/error/404.html
+ *   static/auth/signup.html
+ *   static/auth/oauth-success.html
+ *   static/admin/main.html
+ *   static/admin/board/list.html
  */
 @Controller
 public class ViewController {
 
     @GetMapping("/signup")
     public String signup() {
-        return "forward:/signup.html";
+        return "forward:/auth/signup.html";
     }
 
-    /**
-     * OAuth2 로그인 성공 후 리다이렉트되는 경로.
-     */
     @GetMapping("/oauth/success")
     public String oauthSuccess() {
-        return "forward:/oauth-success.html";
+        return "forward:/auth/oauth-success.html";
+    }
+
+    @GetMapping("/main")
+    public String main() {
+        return "forward:/admin/main.html";
     }
 
     /**
-     * 로그인 후 진입하는 메인 페이지.
-     * 인증 여부 자체는 SecurityConfig에서 permitAll()이지만,
-     * main.js가 Access Token 없으면(재발급도 실패하면) 로그인 페이지로 다시 보낸다.
+     * 게시판 목록.
+     * 인증 여부는 board-list.js가 tryReissue()로 확인한다.
      */
-    @GetMapping("/main")
-    public String main() {
-        return "forward:/main.html";
+    @GetMapping("/board")
+    public String boardList() {
+        return "forward:/admin/board/list.html";
+    }
+
+    @GetMapping("/error/404")
+    public String error404() {
+        return "forward:/error/404.html";
     }
 }

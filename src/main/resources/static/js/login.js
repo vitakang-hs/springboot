@@ -2,8 +2,21 @@
     const form = document.getElementById('loginForm');
     if (!form) return;
 
-    // 로그인 성공 후 이동할 메인 페이지 경로. 페이지 자체는 아직 만들어지지 않았다.
+    // 로그인 성공 후 이동할 메인 페이지 경로.
     const MAIN_PAGE_PATH = '/main';
+
+    // 이미 로그인된 상태(Refresh Token이 아직 유효함)라면, 로그인 폼을 보여줄 필요 없이
+    // 바로 메인으로 보낸다. 새 탭이나 새로고침으로 인해 window.__accessToken은 비어있을 수
+    // 있으므로, 토큰 재발급(tryReissue)으로 실제 로그인 여부를 확인한다.
+    redirectIfAlreadyLoggedIn();
+
+    async function redirectIfAlreadyLoggedIn() {
+        const reissued = await tryReissue();
+        if (reissued) {
+            window.location.href = MAIN_PAGE_PATH;
+        }
+        // 실패하면(로그인 안 된 상태) 아무 동작도 하지 않고 로그인 폼을 그대로 보여준다.
+    }
 
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');

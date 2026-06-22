@@ -1,13 +1,19 @@
 package com.hyunsu.springboot.global.exception;
 
 import com.hyunsu.springboot.global.common.response.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import java.io.IOException;
 
 /**
  * 전역 예외 처리.
@@ -65,5 +71,29 @@ public class GlobalExceptionHandler {
                         ErrorCode.INTERNAL_SERVER_ERROR.getCode(),
                         ErrorCode.INTERNAL_SERVER_ERROR.getMessage()
                 ));
+    }
+
+    /**
+     * 매핑된 컨트롤러가 없는 경로 접근 처리.
+     * /api/**  → 404 JSON 응답
+     * 그 외     → 404 화면으로 리다이렉트
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(
+            NoResourceFoundException e,
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) throws IOException {
+        String uri = request.getRequestURI();
+
+        if (uri.startsWith("/api/")) {
+            log.warn("존재하지 않는 API 경로: {}", uri);
+            ErrorResponse errorResponse = ErrorResponse.of(ErrorCode.NOT_FOUND);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+        }
+
+        // 화면 경로면 404 페이지로 직접 리다이렉트
+        response.sendRedirect("/error/404");
+        return null;
     }
 }

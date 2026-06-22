@@ -135,14 +135,16 @@ src/main/java/com/hyunsu/springboot
  │   │   ├─ mapper                   # MemberMapper.java (Request DTO -> Command 변환)
  │   │   └─ dto
  │   │       ├─ request
- │   │       └─ response
+ │   │       └─ response                  # UsernameCheckResponse.java, EmailCodeSendResponse.java, MemberMeResponse.java
  │   ├─ application
  │   │   ├─ command
  │   │   │   ├─ dto                  # MemberRegisterCommand.java, EmailCodeVerifyCommand.java, OAuthLoginCommand.java, OAuthLoginCommandResult.java
  │   │   │   ├─ MemberRegisterCommandService.java
  │   │   │   ├─ MemberEmailCommandService.java
  │   │   │   └─ OAuthLoginCommandService.java   # 소셜 로그인 시 회원 조회/연동/신규가입 처리
- │   │   └─ query                   # MemberAvailabilityQueryService.java (아이디 등 중복확인)
+ │   │   └─ query
+ │   │       ├─ MemberAvailabilityQueryService.java   # 아이디 등 중복확인
+ │   │       └─ MemberMeQueryService.java               # 로그인한 본인 정보 조회
  │   ├─ domain
  │   │   ├─ model
  │   │   │   ├─ entity                  # Member.java (Aggregate Root), MemberHistory.java, MemberOAuth.java
@@ -184,7 +186,8 @@ src/main/java/com/hyunsu/springboot
  │   │   ├─ command
  │   │   │   ├─ dto                  # LoginCommand.java, LoginCommandResult.java, ReissueCommandResult.java
  │   │   │   ├─ LoginCommandService.java          # 로그인 처리
- │   │   │   └─ TokenReissueCommandService.java    # Access Token 재발급 처리
+ │   │   │   ├─ TokenReissueCommandService.java    # Access Token 재발급 처리
+ │   │   │   └─ LogoutCommandService.java           # Redis의 Refresh Token 삭제
  │   ├─ domain
  │   │   └─ service                  # RefreshTokenManager.java (인터페이스 - JPA 엔티티는 없지만, Redis 접근을 추상화)
  │   └─ infrastructure
@@ -346,6 +349,55 @@ hyunsu:
 
 각 설정 그룹은 `global.config.properties` 패키지의 `@ConfigurationProperties` 클래스(`JwtProperties.java`, `CryptoProperties.java`, `AuthCookieProperties.java`)로 타입 안전하게 바인딩되며, 필요한 곳에서 생성자 주입으로 사용합니다. (개별 `@Value` 주입 대신 이 방식을 우선합니다.)
 
+## 화면(정적 파일) 구조
+
+### 폴더 구조
+
+```
+static
+ ├─ index.html                    # 로그인 화면 (Spring Boot Welcome Page로 자동 서빙되므로 루트 유지)
+ ├─ error
+ │   └─ 404.html
+ ├─ auth
+ │   ├─ signup.html
+ │   └─ oauth-success.html
+ ├─ admin                         # 로그인 후 진입하는 영역 (공통 탑바+사이드바 레이아웃 적용)
+ │   └─ main.html
+ ├─ css
+ │   ├─ common.css                # 전역 공통 스타일 (배경, 폼, 버튼 등)
+ │   └─ admin
+ │       └─ admin-layout.css       # 관리자 페이지 전용 탑바/사이드바 스타일
+ └─ js
+     ├─ common.js                 # 전역 공통 (fetchWithAuth, tryReissue)
+     ├─ background.js             # 우주 배경 캔버스 애니메이션
+     ├─ login.js                  # index.html 전용
+     ├─ auth
+     │   ├─ signup.js
+     │   └─ oauth-success.js
+     └─ admin
+         ├─ admin-layout.js        # 관리자 공통 레이아웃(탑바+사이드바) 주입
+         └─ main.js                # admin/main.html 전용
+```
+
+`index.html`만 `static` 루트에 두는 이유는 Spring Boot의 Welcome Page 자동 설정(`static/index.html`을 `/`로 자동 서빙)을 그대로 활용하기 위함입니다. 나머지 화면은 성격별 폴더(`error`, `auth`, `admin`)로 분리합니다. `ViewController.java`가 깔끔한 URL(`/signup`, `/oauth/success`, `/main`)을 실제 파일 경로로 forward합니다.
+
+### 관리자(admin) 영역 공통 레이아웃
+
+로그인 후 진입하는 `admin/*` 페이지들은 탑바(상단)와 사이드바(좌측 메뉴)를 모든 페이지에서 동일하게 유지합니다. 페이지 본문(콘텐츠)만 페이지마다 다릅니다.
+
+```
+admin/*.html
+ ├─ <div id="adminLayout"></div>   <- 빈 컨테이너만 둠
+ └─ <main class="admin-content">   <- 페이지별 실제 콘텐츠
+```
+
+`js/admin/admin-layout.js`가 페이지 로드 시 `#adminLayout`에 탑바/사이드바 HTML을 채워 넣습니다. 메뉴 추가나 이름 변경 등 레이아웃 수정은 이 파일 한 곳만 고치면 모든 `admin/*` 페이지에 자동 반영됩니다.
+
+- **SPA처럼 내부 콘텐츠만 JS로 바꿔치기하지 않습니다.** 사이드바 메뉴는 `<a href="...">`(진짜 링크)로 구현되어, 클릭하면 브라우저가 실제로 URL을 이동합니다. 그래야 새로고침 시에도 항상 같은 페이지가 그대로 다시 열리고, URL이 주소창에 정확히 노출됩니다.
+- 비활성(아직 구현되지 않은) 메뉴는 `enabled: false`로 표시되며, 클릭이 동작하지 않는 자리표시자로만 렌더링됩니다. (예: COMMUNICATION)
+- 로그아웃 버튼도 레이아웃에 포함되어 모든 `admin/*` 페이지에서 동일하게 동작합니다. (`auth.application.command.LogoutCommandService` 호출)
+- 탑바 우측의 사용자 표시 텍스트는 레이아웃이 직접 채우지 않고, `window.setAdminUserLabel(text)` 전역 함수를 통해 각 페이지 스크립트가 채웁니다. (레이아웃은 "틀"만, 콘텐츠는 페이지가 책임지는 역할 분리)
+
 ## 주요 기능
 
 ### 회원 / 인증
@@ -372,7 +424,7 @@ hyunsu:
 - Redis에 Refresh Token을 저장해 로그아웃/강제 만료 시 즉시 무효화 처리
 - Refresh Token Redis key는 `memberId` 기준(`refresh-token:{memberId}`)으로, 한 회원당 유효한 토큰이 항상 하나만 존재합니다. 재로그인 시 기존 토큰을 덮어써 **중복 로그인을 방지**합니다.
 - Refresh Token은 HttpOnly + Secure + SameSite=Strict 쿠키로 전달해 XSS 방어
-- "로그인 상태 유지(remember me)" 옵션은 도입하지 않았습니다. Refresh Token이 이미 자동 로그인 연장 역할을 하므로, 별도 옵션을 두면 보안 정책만 복잡해진다고 판단했습니다.
+- "로그인 상태 유지(remember me)" 옵션은 현재 도입하지 않았습니다. Refresh Token이 이미 14일짜리 자동 로그인 연장 역할을 하고 있어, 체크박스 없이도 사실상 로그인이 유지됩니다. 향후 "체크 해제 시 브라우저 종료와 함께 로그아웃(세션 쿠키)" 형태로 재도입을 검토 중입니다.
 - 1차로 기본 Access/Refresh 분리 구조를 구현하고, 이후 Refresh Token Rotation(재사용 탐지 포함) 적용 예정
 
 ### 토큰 재발급 흐름
@@ -389,6 +441,8 @@ Access Token이 만료(401)되었을 때, 화면(JS)에서 페이지 이동마�
 ```
 
 - `static/js/common.js`의 `fetchWithAuth()`가 이 흐름을 캡슐화합니다. 인증이 필요한 화면 API 호출은 `fetch` 대신 이 함수를 사용합니다.
+- 재발급 로직(`tryReissue()`) 자체도 `common.js`에 공통 함수로 두어, `fetchWithAuth()`의 401 처리와 페이지 진입 시 로그인 여부 확인(아래 항목) 양쪽에서 재사용합니다.
+- 로그인 페이지(`/`) 진입 시에도 `tryReissue()`를 호출해, 이미 로그인된 상태(Refresh Token이 유효함)라면 로그인 폼을 보여주지 않고 바로 `/main`으로 리다이렉트합니다. (`static/js/login.js`)
 - 재발급 시 Refresh Token은 재사용하며 쿠키를 다시 갱신하지 않습니다 (Rotation 미적용 - 향후 적용 예정).
 
 ### OAuth2 소셜 로그인 흐름 (Google)
@@ -412,7 +466,7 @@ Spring Security의 OAuth2 Login 기능을 사용합니다. 기본적으로 세�
 
 - 소셜 로그인 전용으로 가입한 회원은 `member.username`, `member.password`가 모두 `NULL`이며, 로그인은 항상 소셜 로그인 버튼으로만 가능합니다 (로컬 로그인 폼으로는 애초에 접근 불가).
 - `OAuthLoginCommandService`는 로컬 로그인(`LoginCommandService`)의 비밀번호 검증, 로그인 실패 카운트 등의 정책을 적용하지 않습니다. OAuth 인증 자체가 이미 신뢰할 수 있는 외부 인증이기 때문입니다.
-- 화면단: `static/index.html`의 Google 버튼 클릭 시 `login.js`가 `/oauth2/authorization/google`로 이동시킵니다. `/oauth/success`는 `ViewController.java`가 `static/oauth-success.html`로 forward하며, 해당 페이지의 `oauth-success.js`가 토큰 처리를 담당합니다.
+- 화면단: `static/index.html`의 Google 버튼 클릭 시 `login.js`가 `/oauth2/authorization/google`로 이동시킵니다. `/oauth/success`는 `ViewController.java`가 `static/auth/oauth-success.html`로 forward하며, 해당 페이지의 `static/js/auth/oauth-success.js`가 토큰 처리를 담당합니다.
 
 ## 실행 방법
 
@@ -575,9 +629,18 @@ GitHub Actions를 통해 push/PR 시 빌드 및 테스트를 자동 실행합니
 - [x] 로그인 API (JWT 발급, Refresh Token Redis 저장 + HttpOnly Cookie)
 - [x] 로그인 실패 5회 시 계정 잠금 처리
 - [x] 로그인 이력 기록 (member_history)
-- [ ] Board-Comment Aggregate 설계 적용
+- [x] 로그인한 본인 정보 조회 API (/api/members/me)
+- [x] Board-Comment Aggregate 설계 적용
+- [x] 공통코드 테이블 설계 (code_group, code - 그룹+코드 분리형)
+- [x] 게시판 DB 스키마 설계 (post, comment - soft delete, 공지 정렬)
+- [x] common 도메인 엔티티 (CodeGroup, Code, CodeRepository)
+- [x] board 도메인 엔티티 (Post, Comment, PostRepository, CommentRepository)
+- [ ] 게시글 목록 API (페이지네이션, 공지 상단 고정, 댓글 수 표시)
+- [ ] 게시글 상세 API
+- [ ] 게시글 작성/수정/삭제 API
+- [ ] 댓글 CRUD API
 - [x] 토큰 재발급 API
-- [ ] 로그아웃 API
+- [x] 로그아웃 API
 - [x] 소셜 로그인 DB 스키마 설계 (member_oauth 테이블, member.username/password nullable 변경)
 - [x] OAuth2 소셜 로그인 (Google) 백엔드 구현
 - [x] OAuth2 소셜 로그인 화면(/oauth/success, 구글 로그인 버튼) 연동

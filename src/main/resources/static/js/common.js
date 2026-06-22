@@ -16,7 +16,7 @@ async function fetchWithAuth(url, options = {}) {
         return response;
     }
 
-    const reissued = await reissueAccessToken();
+    const reissued = await tryReissue();
 
     if (!reissued) {
         alert('로그인이 만료되었습니다. 다시 로그인해 주세요.');
@@ -37,7 +37,14 @@ function withAuthHeader(options) {
     return { ...options, headers, credentials: 'include' };
 }
 
-async function reissueAccessToken() {
+/**
+ * Refresh Token 쿠키를 이용해 새 Access Token을 발급받아 메모리에 저장한다.
+ * 성공하면 true, 실패하면 false를 반환한다.
+ *
+ * fetchWithAuth 내부에서 401 발생 시 자동으로 쓰이고, 페이지 진입 시
+ * "이미 로그인된 상태인지" 확인하는 용도로도 재사용된다 (index.html, main.html 등).
+ */
+async function tryReissue() {
     try {
         const response = await fetch('/api/auth/reissue', {
             method: 'POST',

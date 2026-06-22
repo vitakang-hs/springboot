@@ -3,7 +3,7 @@
     const logoutBtn = document.getElementById('logoutBtn');
 
     // 메모리에 Access Token이 없으면 로그인 자체를 한 적이 없는 상태이므로 즉시 로그인 페이지로 보낸다.
-    // (새로고침하면 메모리가 날아가므로, 토큰 재발급(/api/auth/reissue)으로 복구를 시도한 뒤 판단한다)
+    // (새로고침하면 메모리가 날아가므로, 토큰 재발급(tryReissue, common.js)으로 복구를 시도한 뒤 판단한다)
     init();
 
     async function init() {
@@ -16,24 +16,6 @@
         }
 
         await loadMe();
-    }
-
-    async function tryReissue() {
-        try {
-            const response = await fetch('/api/auth/reissue', {
-                method: 'POST',
-                credentials: 'include'
-            });
-            if (!response.ok) return false;
-
-            const result = await response.json();
-            if (!result.success) return false;
-
-            window.__accessToken = result.data.accessToken;
-            return true;
-        } catch (err) {
-            return false;
-        }
     }
 
     async function loadMe() {
