@@ -50,7 +50,7 @@ Spring Boot 학습 및 포트폴리오용 백엔드 프로젝트입니다.
 
 - 회원가입 같은 Command는 검증/저장 로직에 집중
 - 게시판 목록 조회 같은 Query는 QueryDSL 기반 동적 조건/페이징에 집중
-- 우선 게시판(`board`) 도메인에 먼저 적용 후, 다른 도메인으로 확장 예정
+- 게시판(`board`) 도메인의 게시글 목록 조회에 적용을 완료했고, 다른 도메인으로 점진 확장 예정
 
 ### Mapper를 통한 presentation ↔ application 타입 분리
 
@@ -65,7 +65,9 @@ Controller는 `application` 계층의 Service에 presentation의 Request DTO를 
 - API 스펙(Request/Response DTO)이 바뀌어도 Mapper만 수정하면 되고, Service 내부 로직은 영향받지 않습니다.
 - "회원가입을 수행하라"는 도메인 의도를 Command 객체 이름으로 명시적으로 드러냅니다. (예: `MemberRegisterCommand`)
 - 예: `LoginCommandService.login()`은 `LoginCommandResult`(accessToken, refreshToken 등 순수 값)만 반환하고, 이를 클라이언트 응답 Body로 노출할 `LoginResponse`로 변환하는 책임은 `AuthMapper.toResponse()`가 맡습니다. (refreshToken은 Cookie로 별도 전달되므로 Response DTO에는 포함되지 않습니다.) `TokenReissueCommandService.reissue()` → `ReissueCommandResult` → `ReissueResponse`도 동일한 패턴입니다. `*CommandResult` 타입은 항상 application 내부 표현이며, Controller가 이를 그대로 클라이언트에 응답하지 않습니다.
-- Query 쪽도 동일한 원칙을 적용할 수 있으나, 현재 Query는 단순 파라미터(예: username 하나) 수준이라 별도 Query 객체 없이 진행하고 있습니다.
+- `OAuthLoginCommandResult`도 같은 원칙을 따릅니다. `memberId`와 `needsSignup` 플래그만 담은 순수 값 객체이며, `OAuth2LoginSuccessHandler`가 이 결과를 보고 토큰 발급 또는 회원가입 페이지 리다이렉트 중 무엇을 할지 분기합니다.
+- 정적 팩토리 메서드의 이름은 record 컴포넌트명과 동일하게 짓지 않습니다. (예: `OAuthLoginCommandResult`의 컴포넌트가 `needsSignup`이라면, 그 값을 채워 반환하는 정적 팩토리 메서드는 `needsSignup()`이 아닌 `signupRequired()`처럼 다른 이름을 사용합니다. 이름이 같으면 자바 컴파일러가 record 컴포넌트의 접근자(accessor)를 재정의하려는 시도로 해석해, 반환 타입이 컴포넌트 타입과 일치해야 한다는 컴파일 에러가 발생합니다.)
+- Query 쪽도 동일한 원칙을 적용할 수 있으나, 단순 파라미터 수준인 일부 Query(예: username 중복확인)는 별도 Query 객체 없이 진행하고 있습니다. 게시글 목록 조회처럼 조건이 여러 개인 Query는 `PostSearchCondition` 같은 별도 객체로 분리했습니다.
 
 ### Command Service 분리 기준
 
@@ -86,6 +88,7 @@ application (Service) → domain.service (인터페이스) ← infrastructure (�
 **1. application ↔ infrastructure**
 
 - Repository가 이 패턴의 대표 예시입니다: `domain.repository`에 인터페이스(`MemberRepository`)를 두고, Spring Data JPA가 런타임에 구현체를 자동 생성합니다.
+- 조회 전용 Repository도 동일한 패턴을 따릅니다: `board.domain.repository.PostQueryRepository`(인터페이스) ← `board.infrastructure.repository.querydsl.PostQueryRepositoryImpl`(QueryDSL 구현체). 쓰기(`PostRepository`, Spring Data JPA)와 읽기(`PostQueryRepository`, QueryDSL)를 분리해, QueryDSL 의존이 domain 레이어로 새어나오지 않도록 합니다.
 - Redis를 사용하는 부분도 동일하게 적용합니다:
   - `member.domain.service.EmailVerifier` (인터페이스) ← `member.infrastructure.redis.RedisEmailVerifier` (구현체)
   - `auth.domain.service.RefreshTokenManager` (인터페이스) ← `auth.infrastructure.redis.RedisRefreshTokenManager` (구현체)
@@ -112,16 +115,17 @@ application (Service) → domain.service (인터페이스) ← infrastructure (�
 
 | Aggregate | Root | 포함 요소 | 불변식 예시 |
 |---|---|---|---|
-| Member | `Member.java` | Email(VO), Password(VO) | 이메일 인증을 통과한 이메일만 저장 가능, 로그인 실패 5회 시 잠김 |
-| Board | `Board.java` | `Comment.java`, Title(VO), Content(VO) | 게시글 삭제 시 댓글도 함께 삭제, 작성자만 게시글/댓글 삭제 가능 |
+| Member | `Member.java` | Email(VO), Password(VO) | 이메일 인증을 통과한 이메일만 저장 가능, 로그인 실패 5회 시 잠김, 모든 회원은 username/password를 보유 |
+| Post | `Post.java` | `Comment.java` | 게시글 삭제 시 댓글도 함께 삭제(soft delete), 작성자만 게시글/댓글 삭제 가능 |
+| SystemConfigGroup | `SystemConfigGroup.java` | `SystemConfigItem.java` | 그룹 자체는 관리자가 화면에서 추가/삭제하지 않음(코드 레벨 정의), 각 항목의 value만 변경 가능 |
 
 > `MemberHistory.java`(로그인/정보변경 이력)는 Member와 연관되지만, "벌어진 사실의 기록"이라는 로그성 데이터 특성상 Member Aggregate에 강하게 종속시키지 않고 `MemberHistoryRepository`를 통해 직접 저장합니다. (Comment처럼 부모 없이는 의미가 없는 종속 관계와는 다름) `MemberOAuth.java`(소셜 로그인 연동 정보)도 동일하게 `MemberOAuthRepository`를 통해 직접 저장합니다.
 >
 > `auth` 도메인은 별도 JPA Aggregate를 두지 않습니다. Refresh Token은 DB가 아닌 Redis에만 저장하므로(`RefreshTokenManager.java` 인터페이스 + `RedisRefreshTokenManager.java` 구현체), Aggregate Root 개념이 적용되는 영속성 엔티티가 존재하지 않습니다.
 
 **적용 규칙**
-1. Repository는 **Aggregate Root 단위로만 생성**합니다. (`CommentRepository`는 별도로 두지 않고, `Comment.java`는 `BoardRepository`/`Board.java`를 통해서만 조회·생성·삭제)
-2. 다른 Aggregate를 참조할 때는 **객체 참조 대신 ID 참조**를 사용합니다. (예: `Comment.java`는 작성자를 `Member.java` 객체가 아닌 `memberId`로 보관 → Aggregate 간 결합도를 낮춤)
+1. Repository는 **Aggregate Root 단위로만 생성**합니다. (`CommentRepository`는 별도로 두지 않고, `Comment.java`는 `PostRepository`/`Post.java`를 통해서만 조회·생성·삭제)
+2. 다른 Aggregate를 참조할 때는 **객체 참조 대신 ID 참조**를 사용합니다. (예: `Post.java`, `Comment.java`는 작성자를 `Member.java` 객체가 아닌 `memberId`로 보관 → Aggregate 간 결합도를 낮춤. 게시글 목록 조회 시 작성자명이 필요하면 QueryDSL에서 `member` 테이블을 직접 LEFT JOIN하여 가져오며, 이는 조회 전용 흐름이라 Aggregate 경계 원칙과 충돌하지 않습니다.)
 3. 하나의 트랜잭션에서는 **하나의 Aggregate만 수정**하는 것을 원칙으로 합니다.
 
 ## 패키지 구조
@@ -141,7 +145,7 @@ src/main/java/com/hyunsu/springboot
  │   │   │   ├─ dto                  # MemberRegisterCommand.java, EmailCodeVerifyCommand.java, OAuthLoginCommand.java, OAuthLoginCommandResult.java
  │   │   │   ├─ MemberRegisterCommandService.java
  │   │   │   ├─ MemberEmailCommandService.java
- │   │   │   └─ OAuthLoginCommandService.java   # 소셜 로그인 시 회원 조회/연동/신규가입 처리
+ │   │   │   └─ OAuthLoginCommandService.java   # 소셜 로그인 시 회원 조회/연동 처리 (신규 회원은 가입시키지 않고 결과만 반환)
  │   │   └─ query
  │   │       ├─ MemberAvailabilityQueryService.java   # 아이디 등 중복확인
  │   │       └─ MemberMeQueryService.java               # 로그인한 본인 정보 조회
@@ -156,24 +160,29 @@ src/main/java/com/hyunsu/springboot
  │       └─ redis
  │           └─ RedisEmailVerifier.java   # EmailVerifier의 Redis 구현체 (이메일 인증코드 발급/검증)
  │
- ├─ board                           # 게시판 도메인 (Aggregate: Board)
+ ├─ board                           # 게시판 도메인 (Aggregate: Post)
  │   ├─ presentation
- │   │   ├─ controller               # 게시글, 댓글 Controller
+ │   │   ├─ controller               # PostController.java (게시글 목록 등)
+ │   │   ├─ mapper                   # PostMapper.java (PostListResult -> PostListItemResponse 변환, PostCategory enum -> 라벨 매핑)
  │   │   └─ dto
+ │   │       └─ response              # PostListItemResponse.java
  │   ├─ application
- │   │   ├─ command                 # 게시글/댓글 작성·수정·삭제
- │   │   └─ query                   # 게시글 조회/검색 (QueryDSL), 댓글 목록 조회
+ │   │   └─ query
+ │   │       ├─ dto                  # PostListResult.java(QueryDSL Projection 결과), PostSearchCondition.java(검색 조건)
+ │   │       └─ PostListQueryService.java   # 게시글 목록 조회
  │   ├─ domain
  │   │   ├─ model
  │   │   │   ├─ entity
- │   │   │   │   ├─ Board.java           # Aggregate Root
- │   │   │   │   └─ Comment.java          # Board에 종속 (Board를 통해서만 생성/삭제)
+ │   │   │   │   ├─ Post.java            # Aggregate Root
+ │   │   │   │   └─ Comment.java          # Post에 종속 (Post를 통해서만 생성/삭제)
  │   │   │   └─ vo
- │   │   ├─ repository               # BoardRepository만 존재 (CommentRepository 별도로 두지 않음)
+ │   │   │       └─ PostCategory.java      # 게시글 카테고리 enum (NOTICE/FREE/QNA). V7부터 DB(공통코드) 대신 enum으로 관리
+ │   │   ├─ repository               # PostRepository.java(쓰기, Spring Data JPA), PostQueryRepository.java(읽기 인터페이스), CommentRepository.java
  │   │   └─ service
  │   └─ infrastructure
  │       └─ repository
- │           └─ querydsl              # QueryDSL 커스텀 구현체
+ │           └─ querydsl
+ │               └─ PostQueryRepositoryImpl.java   # PostQueryRepository의 QueryDSL 구현체. member 테이블 INNER JOIN(작성자명), 댓글 수 서브쿼리, 공지 상단 고정 정렬
  │
  ├─ auth                            # 인증/인가 (로그인, 토큰, OAuth2)
  │   ├─ presentation
@@ -199,8 +208,15 @@ src/main/java/com/hyunsu/springboot
  │       │   └─ RedisRefreshTokenManager.java   # RefreshTokenManager의 Redis 구현체 (key: memberId 기준)
  │       └─ oauth
  │           ├─ CustomOAuth2UserService.java       # 구글 등으로부터 사용자 정보 수신 (Spring Security 표준 확장점)
- │           ├─ OAuth2LoginSuccessHandler.java      # 인증 성공 시 회원 연결/가입 + JWT 발급 + 리다이렉트
+ │           ├─ OAuth2LoginSuccessHandler.java      # 인증 성공 시 회원 조회/연동 처리 후, 기존 회원이면 JWT 발급, 신규면 회원가입 페이지로 리다이렉트
  │           └─ GoogleOAuthLoginProvider.java        # global.security.OAuthLoginProvider의 구글 구현체
+ │
+ ├─ common                          # 설정값 관리 도메인 (Aggregate: SystemConfigGroup)
+ │   └─ domain
+ │       ├─ model
+ │       │   ├─ entity                  # SystemConfigGroup.java (Aggregate Root - 설정 페이지 좌측 메뉴 단위), SystemConfigItem.java (key-value 설정 항목)
+ │       │   └─ vo                      # ConfigValueType.java (TEXT/LIST - 관리자 화면 입력 UI 결정 기준)
+ │       └─ repository               # SystemConfigGroupRepository.java, SystemConfigItemRepository.java (인터페이스, Spring Data JPA가 구현)
  │
  ├─ global                          # 전역 공통 영역
  │   ├─ config
@@ -232,6 +248,9 @@ src/main/java/com/hyunsu/springboot
 ```
 member (1) ──< (N) member_history
 member (1) ──< (N) member_oauth
+member (1) ──< (N) post
+post   (1) ──< (N) comment
+member (1) ──< (N) comment
 ```
 
 ### member (회원)
@@ -239,8 +258,8 @@ member (1) ──< (N) member_oauth
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | id | BIGSERIAL | PK |
-| username | VARCHAR(20) | 로그인 아이디 (영문/숫자 4~20자, 평문, UNIQUE). 소셜 로그인 전용 가입자는 NULL |
-| password | VARCHAR(100) | BCrypt 단방향 암호화 (실제 60자 고정). 소셜 로그인 전용 가입자는 NULL |
+| username | VARCHAR(20) | 로그인 아이디 (영문/숫자 4~20자, 평문, UNIQUE, NOT NULL) |
+| password | VARCHAR(100) | BCrypt 단방향 암호화 (실제 60자 고정, NOT NULL) |
 | email | VARCHAR(255) | AES-GCM 양방향 암호화된 이메일 (복호화하여 표시/발송에 사용) |
 | email_hash | VARCHAR(64) | 이메일 SHA-256 해시 (검색/중복확인용, UNIQUE) |
 | role | VARCHAR(20) | 회원 권한 (USER, ADMIN) |
@@ -251,7 +270,7 @@ member (1) ──< (N) member_oauth
 
 > `email_verified` 컬럼을 별도로 두지 않습니다. 회원가입과 이메일 변경 모두 "이메일 인증 통과 후에만 DB에 저장"되는 흐름으로 설계되어, DB에 저장된 이메일은 항상 인증된 상태이기 때문에 별도 플래그가 불필요합니다.
 
-> `username`, `password`는 V3 마이그레이션에서 nullable로 변경되었습니다. 구글 등 소셜 로그인만으로 가입한 회원은 아이디/비밀번호 자체가 없으며, 로그인은 항상 소셜 로그인 버튼으로만 가능합니다. PostgreSQL은 NULL끼리 서로 다른 값으로 취급하므로, `username`이 NULL인 행이 여러 개 있어도 `UNIQUE` 제약을 위반하지 않습니다.
+> **`username`, `password` 정책 변경 이력 (V3 → V6)**: V3 마이그레이션에서는 구글 등 소셜 로그인만으로 가입하는 회원(아이디/비밀번호 없는 OAuth 전용 계정)을 허용하기 위해 두 컬럼을 nullable로 변경했습니다. 이후 "게시판이 핵심 기능인 서비스에서 아이디/비밀번호 없는 계정은 운영상 부자연스럽다"고 판단해 정책을 바꾸었고, V6 마이그레이션에서 다시 `NOT NULL`로 복구했습니다. 현재는 구글 로그인 시 DB에 일치하는 회원이 없으면 **회원을 자동 생성하지 않고 회원가입 페이지로 리다이렉트**하여, 사용자가 아이디/비밀번호를 직접 입력해 가입을 완료합니다. (이메일은 구글에서 이미 검증되었으므로 이메일 인증 단계만 스킵합니다.) 자세한 흐름은 아래 OAuth2 소셜 로그인 흐름 섹션 참고.
 
 ### member_oauth (소셜 로그인 연동 정보)
 
@@ -282,6 +301,94 @@ member (1) ──< (N) member_oauth
 | ip_address | VARCHAR(45) | 요청 IP (IPv6 고려) |
 | created_at | TIMESTAMP | 발생 시각 |
 
+### post (게시글) / comment (댓글)
+
+게시판 핵심 테이블입니다. `post`가 Aggregate Root이며, `comment`는 `post_id`로 종속됩니다. 둘 다 soft delete(`deleted_at`)로 삭제를 처리합니다.
+
+| 컬럼 (post) | 타입 | 설명 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| member_id | BIGINT | FK → member.id (작성자) |
+| category | VARCHAR(50) | 게시글 구분 코드값. `PostCategory` enum(NOTICE/FREE/QNA)의 name()이 저장됨 (아래 "게시글 카테고리" 섹션 참고) |
+| title | VARCHAR(200) | 제목 |
+| content | TEXT | 내용 |
+| view_count | INTEGER | 조회수 |
+| created_at / updated_at | TIMESTAMP | 등록일 / 수정일 |
+| deleted_at | TIMESTAMP | 삭제 시각 (soft delete) |
+
+| 컬럼 (comment) | 타입 | 설명 |
+|---|---|---|
+| id | BIGSERIAL | PK |
+| post_id | BIGINT | FK → post.id |
+| member_id | BIGINT | FK → member.id (작성자) |
+| content | VARCHAR(1000) | 내용 |
+| created_at / updated_at | TIMESTAMP | 등록일 / 수정일 |
+| deleted_at | TIMESTAMP | 삭제 시각 (soft delete) |
+
+> 게시글 목록 조회 시 작성자명, 댓글 수는 QueryDSL로 `member` 테이블을 INNER JOIN하거나 서브쿼리로 계산해서 가져오며, `post`/`comment` 테이블 자체에는 비정규화된 값을 두지 않습니다. 카테고리명(라벨)은 DB 조인이 아닌 `PostCategory` enum 매핑으로 가져옵니다 (아래 "게시글 카테고리" 섹션 참고). `member` 테이블과의 조인은 V6부터 INNER JOIN을 사용합니다 - `post.member_id`는 FK로 `member.id`를 항상 가리키고, V6 이후 모든 회원이 username을 보유하므로(OAuth 전용 무자격 가입 경로 제거) 작성자가 없는 게시글은 존재할 수 없다는 보장을 쿼리에서도 명확히 표현하기 위함입니다.
+
+### 게시글 카테고리 (post.category)
+
+게시글 카테고리(공지/자유/질문)는 `board.domain.model.vo.PostCategory` enum으로 관리합니다. `post.category` 컬럼(VARCHAR)에는 이 enum의 `name()`이 그대로 저장됩니다.
+
+```java
+NOTICE("공지", adminOnly = true)
+FREE("자유", adminOnly = false)
+QNA("질문", adminOnly = false)
+```
+
+- `adminOnly`는 해당 카테고리에 글을 쓸 수 있는 권한이 관리자로 제한되는지를 나타냅니다. `PostCategory`는 `member` 도메인의 `Role`을 직접 참조하지 않습니다 — Aggregate 설계 원칙(도메인 간 결합 최소화)에 따라, "관리자 전용인지" 여부만 board 도메인 스스로 표현하고, 실제 작성자의 `Role`과 비교해 작성 가능 여부를 판단하는 책임은 게시글 작성 Command Service(향후 구현 예정)가 집니다.
+- `isNotice()`는 게시글 목록 조회 시 공지 상단 고정 정렬과, 공지 최대 노출 개수 제한(아래 설정값 `NOTICE_MAX_COUNT`)을 판단하는 데 사용됩니다.
+- 카테고리명(라벨)이 필요한 응답(`PostListItemResponse.categoryName`)은 QueryDSL 쿼리 단계에서 DB 조인으로 가져오지 않고, `PostMapper`가 `PostCategory.valueOf(코드값).getLabel()`로 변환해 채웁니다. 즉 "원시 데이터(코드값) 조회"와 "표시용 라벨 변환"의 책임이 분리되어 있습니다.
+
+### 설정값 관리 (system_config_group / system_config_item)
+
+운영 중 자주 바뀔 수 있는 정책성 숫자/목록 값(로그인 실패 허용 횟수, 공지 최대 노출 개수, 페이지 크기 선택지 등)을 코드 재배포 없이 관리자가 직접 수정할 수 있도록 하는 설정 페이지의 데이터 구조입니다.
+
+**이전 설계(공통코드, V4)를 폐기한 이유**
+
+V4에서는 `code_group`/`code`(그룹+코드 분리형 공통코드) 테이블로 "관리자가 자유롭게 코드를 추가"하는 유연한 구조를 의도했습니다. 그러나 다음 두 가지 한계를 직접 확인하고 V7에서 전면 개편했습니다.
+
+1. **코드를 추가해도 결국 그 코드를 사용하는 로직은 개발자가 작성해야 합니다.** 관리자가 새 코드 row를 추가한다고 해서 그 코드를 인식하는 화면/로직이 저절로 생기지 않습니다. "자유롭게 추가 가능"이라는 장점이 실질적으로 의미가 없었습니다. (이 프로젝트에서 사이드바 메뉴를 DB화할지 검토하다가, 동일한 함정(메뉴 row를 추가해도 그 URL의 실제 화면/기능은 별도로 개발해야 함)이 재현된다는 점을 확인하고 사이드바 메뉴는 DB화하지 않기로 결정한 것도 같은 맥락입니다.)
+2. **단일 설정값(예: `NOTICE_MAX_COUNT = 5`)을 표현하기 부적합했습니다.** `code` 테이블은 "선택지 목록"(드롭다운 등)을 표현하기 위한 구조이지, key-value 설정을 위한 구조가 아니었습니다.
+
+**현재 설계 (V7)**
+
+```
+system_config_group (Aggregate Root)  -- 설정 페이지 좌측 메뉴(타이틀) 단위. 예: 로그인, 게시판
+       │
+       └──< system_config_item        -- 그룹에 속한 개별 설정 항목(key-value)
+```
+
+| 테이블 | 컬럼 | 설명 |
+|---|---|---|
+| system_config_group | group_code (PK) | 그룹 코드 (예: LOGIN, BOARD) |
+| | label | 좌측 메뉴에 표시될 이름 (예: 로그인, 게시판) |
+| | sort_order | 메뉴 정렬 순서 |
+| | enabled | 비활성화 시 메뉴 미노출 |
+| system_config_item | config_key (PK) | 설정 키 (예: LOGIN_MAX_FAIL_COUNT) |
+| | group_code (FK) | 소속 그룹 |
+| | label | 설정 화면에 표시될 항목 설명 (예: 로그인 실패 허용 횟수) |
+| | value | 설정값. TEXT는 단일 값("5"), LIST는 콤마 구분 값("10,20,50,100") |
+| | value_type | TEXT 또는 LIST - 관리자 화면에서 입력 UI(단일 텍스트 입력 vs 목록 입력)를 결정 |
+| | sort_order | 그룹 내 항목 정렬 순서 |
+
+**`system_config_group`은 "관리자가 화면에서 자유롭게 추가하는 대상"이 아닙니다.** 새 그룹이 늘어나는 시점은 새로운 설정 카테고리가 코드 레벨에서 추가되는 시점(예: "이메일" 그룹 신설)이며, 이때 항상 마이그레이션이 함께 따릅니다. 화면에서 관리자가 직접 수정할 수 있는 것은 각 `system_config_item`의 `value` 하나뿐입니다. 이 점이 V4 공통코드 설계와의 핵심적인 차이입니다 - "코드/그룹을 자유롭게 추가"하는 기능 자체를 없애고, "이미 정의된 항목의 값만 안전하게 바꾸는" 기능으로 범위를 좁혔습니다.
+
+**초기 설정 항목 (V7 마이그레이션 데이터)**
+
+| group_code | config_key | label | value | value_type |
+|---|---|---|---|---|
+| LOGIN | LOGIN_MAX_FAIL_COUNT | 로그인 실패 허용 횟수 | 5 | TEXT |
+| BOARD | NOTICE_MAX_COUNT | 공지 최대 노출 개수 | 5 | TEXT |
+| BOARD | POST_PAGE_SIZE_OPTIONS | 페이지 크기 선택지 | 10,20,50,100 | LIST |
+
+`SystemConfigItem` 엔티티는 `changeValue(String)` 메서드 하나만 변경 진입점으로 열어두고(setter 없음), `valueAsInt()` / `valueAsList()` 헬퍼로 TEXT/LIST 값을 호출부에서 바로 사용할 수 있게 했습니다. 예를 들어 `LoginCommandService`가 로그인 실패 허용 횟수를 하드코딩된 `5` 대신 `LOGIN_MAX_FAIL_COUNT` 설정값에서 읽어오도록 바꾸는 작업은 이 구조 위에서 진행할 예정입니다(아래 개발 현황 참고).
+
+**관리자 전용 설정 페이지 (예정)**
+
+좌측 사이드바에 "관리자 설정" 메뉴를 ADMIN Role에게만 노출하고, 진입 시 `system_config_group` 목록을 좌측 서브 메뉴로, 선택된 그룹의 `system_config_item` 목록을 key-value 입력 폼(우측 영역에 라벨+입력칸)으로 렌더링하는 화면을 구성할 예정입니다. `value_type`이 `LIST`인 항목은 콤마로 구분해 입력하도록 안내합니다. 화면/API 접근 모두 ADMIN Role로 제한합니다 (`SecurityConfig`에서 API 경로 제한 + 화면 진입 시 `/api/members/me`의 role 확인 후 비ADMIN은 리다이렉트).
+
 ### 개인정보 암호화 전략
 
 이메일 등 민감정보를 암호화하면서도 검색/중복확인 기능을 유지하기 위해 다음 방식을 적용합니다.
@@ -294,7 +401,7 @@ member (1) ──< (N) member_oauth
 
 - 이메일 원문은 AES-GCM으로 암호화하여 저장하고, 화면에 보여주거나 메일을 발송할 때만 복호화합니다.
 - 암호화는 매번 무작위 IV를 사용하므로, 같은 이메일이라도 저장될 때마다 다른 암호문이 생성됩니다.
-- 회원가입 중복확인, 로그인 시 이메일 기반 조회 등은 `email_hash`(SHA-256)로 처리하여, 원문을 복호화하지 않고도 빠르게 검색할 수 있습니다.
+- 회원가입 중복확인, 로그인 시 이메일 기반 조회, 구글 로그인 시 기존 회원 식별 등은 모두 `email_hash`(SHA-256)로 처리하여, 원문을 복호화하지 않고도 빠르게 검색할 수 있습니다.
 - `email_hash`는 단방향이므로 DB가 유출되더라도 해시만으로는 원본 이메일을 복원할 수 없습니다.
 - 비밀번호는 검색이 필요 없는 정보이므로 BCrypt 단방향 암호화만 적용합니다.
 - 암호화/해시에 사용하는 키와 salt는 `application-local.yml`의 `crypto.*` 값으로 관리하며, Git에는 포함되지 않습니다.
@@ -322,7 +429,7 @@ member (1) ──< (N) member_oauth
 
 ### Controller 응답 타입 규칙
 
-- 헤더 조작이 필요 없는 일반 API는 `ApiResponse<T>`를 그대로 반환합니다. (예: `MemberController`)
+- 헤더 조작이 필요 없는 일반 API는 `ApiResponse<T>`를 그대로 반환합니다. (예: `MemberController`, `PostController`)
 - 쿠키 설정, 커스텀 헤더 추가 등 응답 헤더를 직접 다뤄야 하는 API는 `ResponseEntity<ApiResponse<T>>`로 감싸서 반환합니다. (예: `AuthController.login()` - Refresh Token을 `Set-Cookie` 헤더로 내려줘야 함)
 - Refresh Token 쿠키의 `Secure` 속성은 `hyunsu.auth.cookie.secure` 프로퍼티로 프로필별 분기합니다. 로컬/개발(HTTP) 환경은 `false`, 운영(HTTPS) 환경은 `true`로 설정합니다. (HTTPS가 아닌 환경에서 `Secure` 쿠키는 브라우저가 저장하지 않으므로 로컬 테스트가 깨지는 것을 방지)
 
@@ -356,30 +463,59 @@ hyunsu:
 ```
 static
  ├─ index.html                    # 로그인 화면 (Spring Boot Welcome Page로 자동 서빙되므로 루트 유지)
- ├─ error
- │   └─ 404.html
- ├─ auth
- │   ├─ signup.html
- │   └─ oauth-success.html
- ├─ admin                         # 로그인 후 진입하는 영역 (공통 탑바+사이드바 레이아웃 적용)
- │   └─ main.html
+ ├─ html
+ │   ├─ error
+ │   │   └─ 404.html
+ │   ├─ auth
+ │   │   ├─ signup.html
+ │   │   └─ oauth-success.html
+ │   ├─ admin
+ │   │   ├─ main.html
+ │   │   └─ board
+ │   │       ├─ list.html
+ │   │       └─ main.html
  ├─ css
  │   ├─ common.css                # 전역 공통 스타일 (배경, 폼, 버튼 등)
  │   └─ admin
  │       └─ admin-layout.css       # 관리자 페이지 전용 탑바/사이드바 스타일
  └─ js
-     ├─ common.js                 # 전역 공통 (fetchWithAuth, tryReissue)
-     ├─ background.js             # 우주 배경 캔버스 애니메이션
+     ├─ common
+     │   ├─ common.js              # 전역 공통 (fetchWithAuth, tryReissue)
+     │   ├─ background.js          # 우주 배경 캔버스 애니메이션
+     │   └─ modal.js                # 전역 공통 모달 (alert/confirm 대체, 레이어 팝업)
      ├─ login.js                  # index.html 전용
      ├─ auth
-     │   ├─ signup.js
+     │   ├─ signup.js              # 일반 가입 + 구글 OAuth 리다이렉트 진입(이메일 자동입력/인증 스킵) 처리
      │   └─ oauth-success.js
      └─ admin
          ├─ admin-layout.js        # 관리자 공통 레이아웃(탑바+사이드바) 주입
          └─ main.js                # admin/main.html 전용
 ```
 
-`index.html`만 `static` 루트에 두는 이유는 Spring Boot의 Welcome Page 자동 설정(`static/index.html`을 `/`로 자동 서빙)을 그대로 활용하기 위함입니다. 나머지 화면은 성격별 폴더(`error`, `auth`, `admin`)로 분리합니다. `ViewController.java`가 깔끔한 URL(`/signup`, `/oauth/success`, `/main`)을 실제 파일 경로로 forward합니다.
+`index.html`만 `static` 루트에 두는 이유는 Spring Boot의 Welcome Page 자동 설정(`static/index.html`을 `/`로 자동 서빙)을 그대로 활용하기 위함입니다. 나머지 화면은 `html/` 폴더 아래 성격별 하위 폴더(`error`, `auth`, `admin`)로 분리합니다. `ViewController.java`가 깔끔한 URL(`/signup`, `/oauth/success`, `/main`)을 실제 파일 경로로 forward합니다.
+
+### 전역 공통 모달 (alert / confirm 대체)
+
+브라우저 기본 `alert()`/`confirm()` 대신, 디자인을 통일한 레이어 팝업 모달을 전역 공통 컴포넌트로 사용합니다.
+
+```html
+<script src="/js/common/modal.js"></script>
+```
+
+```js
+Modal.alert('회원가입이 완료되었습니다.');
+Modal.alert('이미 가입된 이메일입니다.', { type: 'error' });
+
+Modal.confirm('정말 삭제하시겠습니까?', () => {
+    // 확인 클릭 시 실행할 콜백
+}, { danger: true });
+```
+
+- `type`: `info`(기본) / `error` / `success`로 메시지 성격을 구분합니다.
+- `Modal.confirm()`은 확인/취소 버튼을 표시하고, `danger: true`이면 확인 버튼을 강조 색상으로 표시합니다. (삭제 등 위험한 액션용)
+- ESC 키 또는 오버레이(바깥 영역) 클릭으로도 닫을 수 있으며, `confirm`의 경우 이는 취소로 처리됩니다.
+- 메시지는 `textContent`로만 주입해 XSS를 방지합니다.
+- 스타일은 `modal.js`가 최초 1회 `<style>` 태그를 동적으로 주입하는 방식이라, 별도 CSS 파일 링크 없이 스크립트 한 줄로 사용할 수 있습니다.
 
 ### 관리자(admin) 영역 공통 레이아웃
 
@@ -403,16 +539,16 @@ admin/*.html
 ### 회원 / 인증
 - 회원가입 (이메일 인증 포함)
 - 로그인 (JWT 발급 / 재발급)
-- OAuth2 소셜 로그인
+- OAuth2 소셜 로그인 (기존 회원 로그인/계정 통합. 신규 사용자는 회원가입 페이지로 안내)
 - Redis 기반 ID 채번
 - Redis 기반 이메일 인증코드 발급 및 만료 처리 (TTL)
 - 로그인 실패 5회 시 계정 잠금
 
 ### 게시판
-- 게시글 CRUD
-- 댓글 CRUD (게시글 Aggregate에 종속)
-- QueryDSL 기반 검색 / 동적 조건 처리
-- 페이징
+- 게시글 목록 조회 (QueryDSL, 공지 상단 고정, 댓글 수/작성자/카테고리명 표시, 페이지네이션)
+- 게시글 CRUD (목록 외 작성/수정/삭제/상세는 진행 예정)
+- 댓글 CRUD (게시글 Aggregate에 종속, 진행 예정)
+- QueryDSL 기반 검색 / 동적 조건 처리 (목록 조회의 카테고리 필터/키워드 검색에 적용 완료)
 
 ## 인증 / 토큰 전략
 
@@ -440,7 +576,7 @@ Access Token이 만료(401)되었을 때, 화면(JS)에서 페이지 이동마�
 6. 재발급마저 실패하면(Refresh Token도 만료/무효) 로그인 페이지로 강제 이동
 ```
 
-- `static/js/common.js`의 `fetchWithAuth()`가 이 흐름을 캡슐화합니다. 인증이 필요한 화면 API 호출은 `fetch` 대신 이 함수를 사용합니다.
+- `static/js/common/common.js`의 `fetchWithAuth()`가 이 흐름을 캡슐화합니다. 인증이 필요한 화면 API 호출은 `fetch` 대신 이 함수를 사용합니다.
 - 재발급 로직(`tryReissue()`) 자체도 `common.js`에 공통 함수로 두어, `fetchWithAuth()`의 401 처리와 페이지 진입 시 로그인 여부 확인(아래 항목) 양쪽에서 재사용합니다.
 - 로그인 페이지(`/`) 진입 시에도 `tryReissue()`를 호출해, 이미 로그인된 상태(Refresh Token이 유효함)라면 로그인 폼을 보여주지 않고 바로 `/main`으로 리다이렉트합니다. (`static/js/login.js`)
 - 재발급 시 Refresh Token은 재사용하며 쿠키를 다시 갱신하지 않습니다 (Rotation 미적용 - 향후 적용 예정).
@@ -449,24 +585,35 @@ Access Token이 만료(401)되었을 때, 화면(JS)에서 페이지 이동마�
 
 Spring Security의 OAuth2 Login 기능을 사용합니다. 기본적으로 세션 기반 로그인을 전제로 하지만, 이 프로젝트는 JWT를 사용하므로(`STATELESS`) 인증 성공 직후 흐름을 가로채 우리 JWT를 발급합니다.
 
+구글 로그인은 **"이미 가입된 회원의 로그인 수단"**으로만 동작하며, DB에 일치하는 회원이 없으면 회원을 자동 생성하지 않고 회원가입 페이지로 안내합니다. (V6 정책 변경 - 자세한 배경은 위 member 테이블 설명 참고)
+
 ```
 1. 사용자가 "구글로 로그인" 버튼 클릭 → /oauth2/authorization/google로 이동
 2. 구글 로그인 페이지에서 인증 → 구글이 /login/oauth2/code/google로 콜백
 3. CustomOAuth2UserService가 구글로부터 사용자 정보(email, sub) 수신
-4. OAuth2LoginSuccessHandler:
-   a. OAuthLoginCommandService.login()으로 회원 조회/연동/신규가입 처리
-      - (provider, providerId)로 기존 연동(member_oauth)이 있으면 그 회원으로 처리
-      - 연동이 없지만 같은 이메일의 기존(로컬) 회원이 있으면, 그 회원에 연동만 추가 (계정 통합)
-      - 둘 다 없으면 Member.registerByOAuth()로 신규가입 + 연동 생성
-   b. Access/Refresh Token 발급, Refresh Token은 Redis 저장 + Cookie 설정 (로그인 API와 동일한 방식)
-   c. Access Token을 쿼리 파라미터로 실어 /oauth/success로 리다이렉트
-5. /oauth/success 페이지(JS)가 쿼리 파라미터에서 Access Token을 꺼내 메모리에 저장하고,
-   보안을 위해 history.replaceState()로 URL에서 토큰 흔적을 제거
+4. OAuth2LoginSuccessHandler가 OAuthLoginCommandService.login()으로 회원 조회 처리
+   - (provider, providerId)로 기존 연동(member_oauth)이 있으면 그 회원으로 처리 → 5-A로 진행
+   - 연동이 없지만 같은 이메일의 기존(로컬) 회원이 있으면, 그 회원에 연동만 추가(계정 통합) → 5-A로 진행
+   - 둘 다 없으면(DB에 일치하는 회원이 전혀 없음) 회원을 생성하지 않고 needsSignup=true 결과만 반환 → 5-B로 진행
+5-A. 기존 회원 (needsSignup=false):
+   - Access/Refresh Token 발급, Refresh Token은 Redis 저장 + Cookie 설정 (로그인 API와 동일한 방식)
+   - Access Token을 쿼리 파라미터로 실어 /oauth/success로 리다이렉트
+   - /oauth/success 페이지(JS)가 쿼리 파라미터에서 Access Token을 꺼내 메모리에 저장하고,
+     보안을 위해 history.replaceState()로 URL에서 토큰 흔적을 제거
+5-B. 신규 사용자 (needsSignup=true):
+   - 토큰을 발급하지 않고, 이메일을 Base64Url(패딩 없음)로 인코딩해 쿼리 파라미터에 담아
+     회원가입 페이지(/html/auth/signup.html?email={인코딩된 이메일}&emailVerified=true&source=google)로 리다이렉트
+   - signup.js가 source=google을 감지하면: 이메일 input에 디코딩한 값을 채워 readOnly로 잠그고,
+     이메일 인증코드 발송/입력 영역을 전부 숨기고 인증완료 배지로 교체한 뒤, 인증 상태를 통과 처리
+   - 사용자는 아이디/비밀번호만 입력하면 회원가입을 완료할 수 있음 (이메일 인증 단계는 구글 인증으로 대체)
+   - 이렇게 가입이 완료되면 이후 동일한 구글 계정으로 다시 로그인 시 emailHash로 매칭되어 4번의
+     "이메일 일치 → 연동 추가" 경로를 타게 됨 (단, member_oauth 연동 자체는 가입 시점이 아니라
+     다음 구글 로그인 시점에 비로소 생성됨)
 ```
 
-- 소셜 로그인 전용으로 가입한 회원은 `member.username`, `member.password`가 모두 `NULL`이며, 로그인은 항상 소셜 로그인 버튼으로만 가능합니다 (로컬 로그인 폼으로는 애초에 접근 불가).
 - `OAuthLoginCommandService`는 로컬 로그인(`LoginCommandService`)의 비밀번호 검증, 로그인 실패 카운트 등의 정책을 적용하지 않습니다. OAuth 인증 자체가 이미 신뢰할 수 있는 외부 인증이기 때문입니다.
-- 화면단: `static/index.html`의 Google 버튼 클릭 시 `login.js`가 `/oauth2/authorization/google`로 이동시킵니다. `/oauth/success`는 `ViewController.java`가 `static/auth/oauth-success.html`로 forward하며, 해당 페이지의 `static/js/auth/oauth-success.js`가 토큰 처리를 담당합니다.
+- `OAuthLoginCommandResult`는 `memberId`(기존 회원이면 채워짐)와 `needsSignup`(신규 가입 필요 여부) 두 값만 담은 순수 값 객체입니다. 정적 팩토리 메서드는 `of(memberId)` / `signupRequired()`로, record 컴포넌트명(`needsSignup`)과 겹치지 않도록 이름을 분리했습니다.
+- 화면단: `static/index.html`의 Google 버튼 클릭 시 `login.js`가 `/oauth2/authorization/google`로 이동시킵니다. `/oauth/success`는 `ViewController.java`가 `static/html/auth/oauth-success.html`로 forward하며, 해당 페이지의 `static/js/auth/oauth-success.js`가 토큰 처리를 담당합니다.
 
 ## 실행 방법
 
@@ -560,11 +707,11 @@ hyunsu:
 
 1. 프로젝트 생성 (또는 기존 프로젝트 사용)
 2. **API 및 서비스 → OAuth 동의 화면**
-  - User Type: 외부(External)
-  - 테스트 사용자에 본인 Google 계정 추가 (테스트 상태에서는 등록된 테스트 사용자만 로그인 가능)
+- User Type: 외부(External)
+- 테스트 사용자에 본인 Google 계정 추가 (테스트 상태에서는 등록된 테스트 사용자만 로그인 가능)
 3. **API 및 서비스 → 사용자 인증 정보 → OAuth 클라이언트 ID 만들기**
-  - 애플리케이션 유형: 웹 애플리케이션
-  - 승인된 리디렉션 URI: `http://localhost:8080/login/oauth2/code/google`
+- 애플리케이션 유형: 웹 애플리케이션
+- 승인된 리디렉션 URI: `http://localhost:8080/login/oauth2/code/google`
 4. 발급된 클라이언트 ID / 클라이언트 보안 비밀번호를 `application-local.yml`에 입력합니다. (Spring Security OAuth2 Client 표준 네임스페이스이므로 `hyunsu.*`가 아닌 `spring.security.oauth2.*`를 그대로 사용합니다.)
 
 ```yaml
@@ -630,23 +777,28 @@ GitHub Actions를 통해 push/PR 시 빌드 및 테스트를 자동 실행합니
 - [x] 로그인 실패 5회 시 계정 잠금 처리
 - [x] 로그인 이력 기록 (member_history)
 - [x] 로그인한 본인 정보 조회 API (/api/members/me)
-- [x] Board-Comment Aggregate 설계 적용
-- [x] 공통코드 테이블 설계 (code_group, code - 그룹+코드 분리형)
-- [x] 게시판 DB 스키마 설계 (post, comment - soft delete, 공지 정렬)
-- [x] common 도메인 엔티티 (CodeGroup, Code, CodeRepository)
-- [x] board 도메인 엔티티 (Post, Comment, PostRepository, CommentRepository)
-- [ ] 게시글 목록 API (페이지네이션, 공지 상단 고정, 댓글 수 표시)
-- [ ] 게시글 상세 API
-- [ ] 게시글 작성/수정/삭제 API
-- [ ] 댓글 CRUD API
 - [x] 토큰 재발급 API
 - [x] 로그아웃 API
-- [x] 소셜 로그인 DB 스키마 설계 (member_oauth 테이블, member.username/password nullable 변경)
+- [x] 소셜 로그인 DB 스키마 설계 (member_oauth 테이블)
 - [x] OAuth2 소셜 로그인 (Google) 백엔드 구현
 - [x] OAuth2 소셜 로그인 화면(/oauth/success, 구글 로그인 버튼) 연동
-- [ ] 게시판 CRUD
-- [ ] 댓글 CRUD
-- [ ] QueryDSL 검색 / 페이징
+- [x] 전역 공통 모달(alert/confirm) 컴포넌트 구현
+- [x] OAuth 정책 변경: 구글 로그인은 기존 회원 로그인 전용으로 제한, 신규 사용자는 회원가입 페이지로 리다이렉트
+- [x] V6 마이그레이션: member.username/password NOT NULL 복구 (OAuth 전용 무자격 가입 경로 제거)
+- [x] Board-Comment Aggregate 설계 적용
+- [x] 게시판 DB 스키마 설계 (post, comment - soft delete, 공지 정렬)
+- [x] board 도메인 엔티티 (Post, Comment, PostRepository, CommentRepository)
+- [x] 게시글 목록 API (QueryDSL, 페이지네이션, 공지 상단 고정, 댓글 수/작성자/카테고리명 표시)
+- [x] 게시글 카테고리를 PostCategory enum으로 전환 (공지/자유/질문, adminOnly 속성 보유, member.Role 비의존)
+- [x] V7 마이그레이션: code/code_group 테이블 폐기, system_config_group/system_config_item 신설
+- [x] SystemConfigGroup/SystemConfigItem 엔티티 및 Repository 구현
+- [ ] 설정값 조회/수정 API (Query/Command Service, Controller) - 단건 수정 vs 그룹 단위 일괄 수정 방식 결정 필요
+- [ ] LoginCommandService가 로그인 실패 허용 횟수를 하드코딩 대신 LOGIN_MAX_FAIL_COUNT 설정값에서 읽도록 변경
+- [ ] 관리자 설정 페이지 화면 (좌측 그룹 메뉴 + key-value 입력 폼, ADMIN 전용 접근 제어)
+- [ ] 게시글 상세 API
+- [ ] 게시글 작성/수정/삭제 API (PostCategory.adminOnly 기준 작성 권한 검증 포함)
+- [ ] 댓글 CRUD API
+- [ ] 인증코드 발송 시 이미 가입된 이메일에 대한 안내 처리
 - [ ] Swagger API 문서 보강 (각 API에 어노테이션 추가)
 - [ ] 테스트 코드 작성
 - [ ] Docker Compose 환경 구성

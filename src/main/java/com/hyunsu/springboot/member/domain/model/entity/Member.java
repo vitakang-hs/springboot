@@ -26,9 +26,15 @@ import java.time.LocalDateTime;
  * member 테이블과 1:1로 매핑된다.
  * setter를 열어두지 않고, 상태 변경은 의도가 드러나는 메서드로만 허용한다.
  *
- * username, password는 nullable이다 (V3 마이그레이션).
- * 소셜 로그인(registerByOAuth)으로만 가입한 회원은 아이디/비밀번호 자체가 없으며,
- * 로그인은 항상 소셜 로그인 버튼으로만 가능하다 (로컬 로그인 폼으로는 애초에 접근 불가).
+ * V6 정책 변경: 모든 회원은 username/password를 보유한다.
+ * 구글 로그인 시 DB에 일치하는 회원이 없으면 회원을 자동 생성하지 않고
+ * 회원가입 페이지로 리다이렉트하여 사용자가 직접 아이디/비밀번호를 입력하게 한다
+ * (이메일은 이미 구글에서 검증되었으므로 이메일 인증 단계만 스킵).
+ * 이후 구글 로그인은 member_oauth 연동을 통해 기존 회원과 연결될 뿐,
+ * username/password 없는 계정은 더 이상 생성되지 않는다.
+ *
+ * (과거 V3~V5 사이에는 OAuth 전용 무자격 가입(registerByOAuth)을 허용했으나,
+ *  V6에서 정책이 변경되며 해당 가입 경로는 제거되었다)
  */
 @Entity
 @Table(name = "member")
@@ -43,11 +49,11 @@ public class Member {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "username", length = 20)
-    private String username; // 소셜 로그인 전용 가입자는 null
+    @Column(name = "username", nullable = false, length = 20)
+    private String username;
 
-    @Column(name = "password", length = 100)
-    private String password; // BCrypt 암호화된 값. 소셜 로그인 전용 가입자는 null
+    @Column(name = "password", nullable = false, length = 100)
+    private String password; // BCrypt 암호화된 값
 
     @Column(name = "email", nullable = false)
     private String email; // AES 암호화된 값
@@ -88,8 +94,11 @@ public class Member {
     }
 
     /**
-     * 일반(아이디/비밀번호) 회원가입 정적 팩토리.
+     * 회원가입 정적 팩토리.
      * 이 메서드는 암호화를 책임지지 않는다 - 호출하는 Service가 이미 암호화된 값을 넘겨야 한다.
+     *
+     * 일반 가입이든, 구글 인증을 거친 가입이든 이 메서드 하나로 통일된다
+     * (V6부터는 모든 가입 경로가 아이디/비밀번호를 필수로 요구하기 때문).
      *
      * @param username        로그인 아이디 (평문)
      * @param encodedPassword BCrypt로 이미 암호화된 비밀번호
@@ -98,28 +107,9 @@ public class Member {
      */
     public static Member register(String username, String encodedPassword, String encryptedEmail, String emailHash) {
         if (username == null || encodedPassword == null) {
-            throw new IllegalArgumentException("일반 회원가입은 아이디와 비밀번호가 필수입니다.");
+            throw new IllegalArgumentException("회원가입은 아이디와 비밀번호가 필수입니다.");
         }
         return new Member(username, encodedPassword, encryptedEmail, emailHash);
-    }
-
-    /**
-     * 소셜 로그인(OAuth2) 전용 회원가입 정적 팩토리.
-     * username, password 없이 이메일 정보만으로 가입한다.
-     *
-     * @param encryptedEmail AES로 이미 암호화된 이메일
-     * @param emailHash      이메일의 SHA-256 해시
-     */
-    public static Member registerByOAuth(String encryptedEmail, String emailHash) {
-        return new Member(null, null, encryptedEmail, emailHash);
-    }
-
-    /**
-     * 소셜 로그인 전용 계정인지 여부.
-     * (아이디/비밀번호 자체가 없는 계정)
-     */
-    public boolean isOAuthOnly() {
-        return this.username == null && this.password == null;
     }
 
     // ===== 로그인 관련 행위 =====

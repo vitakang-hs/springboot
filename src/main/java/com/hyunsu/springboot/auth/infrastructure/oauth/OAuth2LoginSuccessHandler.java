@@ -18,9 +18,12 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 
 /**
  * 구글 OAuth2 인증 성공 시 호출되는 핸들러.
@@ -31,16 +34,19 @@ import java.time.Duration;
  *
  * 흐름:
  *  1. 구글이 준 사용자 정보(OAuth2User)에서 email, sub(고유 ID) 추출
- *  2. OAuthLoginCommandService로 회원 조회/가입 처리
- *  3. Access/Refresh Token 발급, Refresh Token은 Redis 저장 + Cookie 설정
- *  4. Access Token을 쿼리 파라미터로 실어 프론트 페이지로 리다이렉트
- *     (화면이 그 토큰을 받아 메모리에 저장하도록 함)
+ *  2. OAuthLoginCommandService로 회원 조회 처리
+ *  3-A. 기존 회원이면: Access/Refresh Token 발급, Refresh Token은 Redis 저장 + Cookie 설정 후
+ *       Access Token을 쿼리 파라미터로 실어 프론트 페이지로 리다이렉트
+ *  3-B. DB에 없는 신규 사용자면: 토큰을 발급하지 않고 회원가입 페이지로 리다이렉트한다.
+ *       이메일은 구글에서 이미 검증되었으므로, 회원가입 페이지는 이를 신뢰하고
+ *       이메일 인증 단계를 스킵 처리한다.
  */
 @Component
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
     private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
     private static final String OAUTH_SUCCESS_REDIRECT_PATH = "/oauth/success";
+    private static final String SIGNUP_REDIRECT_PATH = "/html/auth/signup.html";
 
     private final OAuthLoginCommandService oAuthLoginCommandService;
     private final MemberRepository memberRepository;
@@ -76,7 +82,35 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         OAuthLoginCommand command = new OAuthLoginCommand(OAuthProvider.GOOGLE, providerId, email);
         OAuthLoginCommandResult result = oAuthLoginCommandService.login(command);
 
-        Member member = memberRepository.findById(result.memberId())
+        if (result.needsSignup()) {
+            redirectToSignup(response, email);
+            return;
+        }
+
+        issueTokensAndRedirect(response, result.memberId());
+    }
+
+    /**
+     * DB에 일치하는 회원이 없는 경우 회원가입 페이지로 리다이렉트.
+     * 이메일을 쿼리 파라미터로 전달해 회원가입 폼에 미리 채워주고,
+     * emailVerified=true 로 표시해 인증 단계를 건너뛸 수 있게 한다.
+     */
+    private void redirectToSignup(HttpServletResponse response, String email) throws IOException {
+        String encodedEmail = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(email.getBytes(StandardCharsets.UTF_8));
+
+        String redirectUrl = UriComponentsBuilder.fromPath(SIGNUP_REDIRECT_PATH)
+                .queryParam("email", encodedEmail)
+                .queryParam("emailVerified", "true")
+                .queryParam("source", "google")
+                .build()
+                .toUriString();
+
+        response.sendRedirect(redirectUrl);
+    }
+
+    private void issueTokensAndRedirect(HttpServletResponse response, Long memberId) throws IOException {
+        Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalStateException("OAuth 로그인 처리 직후 회원을 찾을 수 없습니다."));
 
         String accessToken = jwtProvider.createAccessToken(member.getId(), member.getRole().name());

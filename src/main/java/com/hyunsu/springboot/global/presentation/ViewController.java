@@ -19,17 +19,17 @@ public class ViewController {
 
     @GetMapping("/signup")
     public String signup() {
-        return "forward:/auth/signup.html";
+        return "forward:/html/auth/signup.html";
     }
 
     @GetMapping("/oauth/success")
     public String oauthSuccess() {
-        return "forward:/auth/oauth-success.html";
+        return "forward:/html/auth/oauth-success.html";
     }
 
     @GetMapping("/main")
     public String main() {
-        return "forward:/admin/main.html";
+        return "forward:/html/admin/main.html";
     }
 
     /**
@@ -38,11 +38,11 @@ public class ViewController {
      */
     @GetMapping("/board")
     public String boardList() {
-        return "forward:/admin/board/list.html";
+        return "forward:/html/admin/board/list.html";
     }
 
     @GetMapping("/error/404")
     public String error404() {
-        return "forward:/error/404.html";
+        return "forward:/html/error/404.html";
     }
 }

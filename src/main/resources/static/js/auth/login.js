@@ -29,7 +29,7 @@
         const password = passwordInput.value;
 
         if (!username || !password) {
-            alert('아이디와 비밀번호를 입력해 주세요.');
+            Modal.alert('아이디와 비밀번호를 입력해 주세요.');
             return;
         }
 
@@ -54,7 +54,7 @@
 
             window.location.href = MAIN_PAGE_PATH;
         } catch (err) {
-            alert(err.message || '로그인 중 오류가 발생했습니다.');
+            Modal.alert(err.message || '로그인 중 오류가 발생했습니다.');
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = '로그인';

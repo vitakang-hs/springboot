@@ -34,6 +34,70 @@
     let codeTimerInterval = null;
     let resendCooldownInterval = null;
 
+    // ===== 구글 OAuth 리다이렉트 진입 처리 =====
+    // OAuth2LoginSuccessHandler가 DB에 없는 신규 사용자를 이 페이지로 보낼 때
+    // ?email=(Base64)&emailVerified=true&source=google 형태로 붙여서 보낸다.
+    // 이미 구글에서 검증된 이메일이므로, 이메일 인증 단계(발송/코드입력/확인)를 통째로 스킵한다.
+    initGoogleOAuthEntry();
+
+    function initGoogleOAuthEntry() {
+        const params = new URLSearchParams(window.location.search);
+        const source = params.get('source');
+        const isEmailVerified = params.get('emailVerified') === 'true';
+        const encodedEmail = params.get('email');
+
+        if (source !== 'google' || !encodedEmail) return;
+
+        let email;
+        try {
+            email = decodeBase64Url(encodedEmail);
+        } catch (e) {
+            // 디코딩 실패 시 일반 가입 흐름으로 폴백 (잘못된 파라미터는 무시)
+            return;
+        }
+
+        emailInput.value = email;
+
+        if (isEmailVerified) {
+            applyVerifiedEmailFromGoogle();
+        } else {
+            // emailVerified가 false/누락이면 이메일만 채워주고 인증은 평소대로 진행
+            validateEmail();
+        }
+    }
+
+    // Base64Url(패딩 없음) 디코딩. 핸들러가 Base64.getUrlEncoder().withoutPadding()로 인코딩해 보낸다.
+    function decodeBase64Url(value) {
+        let base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4 !== 0) {
+            base64 += '=';
+        }
+        return decodeURIComponent(escape(window.atob(base64)));
+    }
+
+    // 이메일 입력란을 잠그고, 발송 버튼을 인증완료 배지로 교체하고, 코드 입력 영역을 숨긴다.
+    function applyVerifiedEmailFromGoogle() {
+        emailInput.readOnly = true;
+        emailInput.classList.add('verified-locked');
+
+        sendCodeBtn.style.display = 'none';
+
+        const googleBadge = document.getElementById('googleVerifiedBadge');
+        if (googleBadge) {
+            googleBadge.style.display = '';
+        }
+
+        const emailVerifyArea = document.getElementById('emailVerifyArea');
+        if (emailVerifyArea) {
+            emailVerifyArea.style.display = 'none';
+        }
+
+        emailCodeIssued = true;
+        emailCodeVerified = true;
+        showError(emailCodeError, '');
+        updateSubmitButton();
+    }
+
     function showError(el, message) {
         el.textContent = message;
         el.classList.toggle('show', Boolean(message));
@@ -290,7 +354,7 @@
             }
 
             // 테스트용: 서버가 발급한 코드를 alert으로 표시 (실제 메일 발송 연동 전까지의 임시 조치)
-            alert(`[테스트용] 발급된 인증코드: ${result.data.code}`);
+            Modal.alert(`[테스트용] 발급된 인증코드: ${result.data.code}`);
 
             emailCodeInput.disabled = false;
             emailCodeInput.value = '';
@@ -317,7 +381,7 @@
         } catch (err) {
             sendCodeBtn.disabled = !validateEmail();
             sendCodeBtn.textContent = '인증코드 발송';
-            alert(err.message || '인증코드 발송 중 오류가 발생했습니다.');
+            Modal.alert(err.message || '인증코드 발송 중 오류가 발생했습니다.');
         }
     });
 
@@ -397,12 +461,12 @@
         }
 
         if (!usernameVerified) {
-            alert('아이디 중복확인을 먼저 진행해 주세요.');
+            Modal.alert('아이디 중복확인을 먼저 진행해 주세요.');
             return;
         }
 
         if (!emailCodeVerified) {
-            alert('이메일 인증을 먼저 완료해 주세요.');
+            Modal.alert('이메일 인증을 먼저 완료해 주세요.');
             return;
         }
 
@@ -425,10 +489,10 @@
                 throw new Error(result.message || '회원가입 중 오류가 발생했습니다.');
             }
 
-            alert('회원가입이 완료되었습니다. 로그인 페이지로 이동합니다.');
+            Modal.alert('회원가입이 완료되었습니다. 로그인 페이지로 이동합니다.');
             window.location.href = '/';
         } catch (err) {
-            alert(err.message || '회원가입 중 오류가 발생했습니다.');
+            Modal.alert(err.message || '회원가입 중 오류가 발생했습니다.');
             submitBtn.disabled = false;
             submitBtn.textContent = '회원가입';
         }

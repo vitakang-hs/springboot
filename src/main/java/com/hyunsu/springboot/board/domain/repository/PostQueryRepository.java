@@ -20,5 +20,5 @@ public interface PostQueryRepository {
      * - 삭제된 게시글(deletedAt IS NOT NULL)은 제외된다.
      * - categoryCode, keyword 는 null 이면 조건에서 제외된다.
      */
-    //Page<PostListResult> findPostList(PostSearchCondition condition, Pageable pageable);
+    Page<PostListResult> findPostList(PostSearchCondition condition, Pageable pageable);
 }

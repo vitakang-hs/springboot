@@ -19,7 +19,7 @@ async function fetchWithAuth(url, options = {}) {
     const reissued = await tryReissue();
 
     if (!reissued) {
-        alert('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+        Modal.alert('로그인이 만료되었습니다. 다시 로그인해 주세요.');
         window.location.href = '/';
         // 호출부에서 더 이상 처리하지 않도록 reject
         return Promise.reject(new Error('인증이 만료되어 재로그인이 필요합니다.'));

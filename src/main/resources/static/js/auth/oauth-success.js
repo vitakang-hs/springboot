@@ -7,7 +7,7 @@
 
     if (!accessToken) {
         // 토큰 없이 이 페이지로 직접 들어온 경우 (정상적인 흐름이 아님)
-        alert('로그인 처리 중 오류가 발생했습니다. 다시 시도해 주세요.');
+        Modal.alert('로그인 처리 중 오류가 발생했습니다. 다시 시도해 주세요.');
         window.location.href = '/';
         return;
     }

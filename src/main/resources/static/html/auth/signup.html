@@ -51,18 +51,26 @@
                 </svg>
                 <input type="email" id="email" name="email" placeholder="이메일" autocomplete="email">
                 <button type="button" class="btn-inline" id="sendCodeBtn" disabled>인증코드 발송</button>
+                <button type="button" class="btn-inline btn-inline-success" id="googleVerifiedBadge" style="display:none;" disabled>인증완료</button>
             </div>
 
-            <div class="field field-with-button">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 8v4l3 3"/>
-                    <circle cx="12" cy="12" r="9"/>
-                </svg>
-                <input type="text" id="emailCode" name="emailCode" placeholder="이메일 인증코드 입력" disabled maxlength="6">
-                <button type="button" class="btn-inline" id="verifyCodeBtn" disabled>확인</button>
+            <!--
+                emailVerifyArea: 이메일 인증코드 입력/확인/타이머를 묶은 래퍼.
+                구글 OAuth로 진입 시(signup.js의 applyVerifiedEmailFromGoogle) 이 영역 전체를 숨기고,
+                위쪽 sendCodeBtn도 googleVerifiedBadge로 교체된다.
+            -->
+            <div id="emailVerifyArea">
+                <div class="field field-with-button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 8v4l3 3"/>
+                        <circle cx="12" cy="12" r="9"/>
+                    </svg>
+                    <input type="text" id="emailCode" name="emailCode" placeholder="이메일 인증코드 입력" disabled maxlength="6">
+                    <button type="button" class="btn-inline" id="verifyCodeBtn" disabled>확인</button>
+                </div>
+                <p class="field-error" id="emailCodeError"></p>
+                <p class="field-timer" id="codeTimer"></p>
             </div>
-            <p class="field-error" id="emailCodeError"></p>
-            <p class="field-timer" id="codeTimer"></p>
 
             <button type="submit" class="btn-primary" id="submitBtn" disabled>회원가입</button>
         </form>
@@ -71,8 +79,9 @@
     </div>
 </div>
 
-<script src="/js/common.js"></script>
-<script src="/js/background.js"></script>
+<script src="/js/common/common.js"></script>
+<script src="/js/common/background.js"></script>
+<script src="/js/common/modal.js"></script>
 <script src="/js/auth/signup.js"></script>
 </body>
 </html>
