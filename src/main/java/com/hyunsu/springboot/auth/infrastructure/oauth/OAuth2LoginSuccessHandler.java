@@ -9,6 +9,7 @@ import com.hyunsu.springboot.member.application.command.dto.OAuthLoginCommandRes
 import com.hyunsu.springboot.member.domain.model.entity.Member;
 import com.hyunsu.springboot.member.domain.model.vo.OAuthProvider;
 import com.hyunsu.springboot.member.domain.repository.MemberRepository;
+import com.hyunsu.springboot.member.domain.service.EmailVerifier;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpHeaders;
@@ -18,54 +19,51 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Base64;
 
 /**
  * 구글 OAuth2 인증 성공 시 호출되는 핸들러.
  *
- * Spring Security의 OAuth2 Login은 기본적으로 세션 기반 로그인을 전제로 하지만,
- * 이 프로젝트는 JWT를 사용하므로(STATELESS) 이 핸들러에서 인증 성공 직후
- * 흐름을 가로채 우리 JWT를 발급하고, 화면으로 리다이렉트한다.
- *
  * 흐름:
  *  1. 구글이 준 사용자 정보(OAuth2User)에서 email, sub(고유 ID) 추출
  *  2. OAuthLoginCommandService로 회원 조회 처리
- *  3-A. 기존 회원이면: Access/Refresh Token 발급, Refresh Token은 Redis 저장 + Cookie 설정 후
- *       Access Token을 쿼리 파라미터로 실어 프론트 페이지로 리다이렉트
- *  3-B. DB에 없는 신규 사용자면: 토큰을 발급하지 않고 회원가입 페이지로 리다이렉트한다.
- *       이메일은 구글에서 이미 검증되었으므로, 회원가입 페이지는 이를 신뢰하고
- *       이메일 인증 단계를 스킵 처리한다.
+ *  3-A. 기존 회원이면: JWT 발급 → /oauth/success로 리다이렉트
+ *  3-B. 신규 사용자면: 구글이 검증한 이메일로 "인증 완료 증명 토큰"을 발급(EmailVerifier, TTL 30분)하고
+ *       토큰만 URL에 담아 회원가입 페이지로 리다이렉트.
+ *       - 이메일은 URL에 노출되지 않는다 (이전에는 Base64로 인코딩해 URL에 담았으나, 디코딩하면 평문이 드러나 변경)
+ *       - 이 토큰은 일반 가입의 이메일 인증코드 검증 성공 시 발급되는 것과 같은 토큰이라,
+ *         회원가입 API는 가입 경로와 무관하게 같은 방식으로 이메일 인증 여부를 검증한다.
  */
 @Component
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
     private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
     private static final String OAUTH_SUCCESS_REDIRECT_PATH = "/oauth/success";
-    private static final String SIGNUP_REDIRECT_PATH = "/html/auth/signup.html";
+    private static final String SIGNUP_REDIRECT_PATH = "/signup";
 
     private final OAuthLoginCommandService oAuthLoginCommandService;
     private final MemberRepository memberRepository;
     private final JwtProvider jwtProvider;
     private final RefreshTokenManager refreshTokenManager;
     private final AuthCookieProperties authCookieProperties;
+    private final EmailVerifier emailVerifier;
 
     public OAuth2LoginSuccessHandler(
             OAuthLoginCommandService oAuthLoginCommandService,
             MemberRepository memberRepository,
             JwtProvider jwtProvider,
             RefreshTokenManager refreshTokenManager,
-            AuthCookieProperties authCookieProperties
+            AuthCookieProperties authCookieProperties,
+            EmailVerifier emailVerifier
     ) {
         this.oAuthLoginCommandService = oAuthLoginCommandService;
         this.memberRepository = memberRepository;
         this.jwtProvider = jwtProvider;
         this.refreshTokenManager = refreshTokenManager;
         this.authCookieProperties = authCookieProperties;
+        this.emailVerifier = emailVerifier;
     }
 
     @Override
@@ -77,7 +75,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         OAuth2User oAuth2User = ((OAuth2AuthenticationToken) authentication).getPrincipal();
 
         String email = oAuth2User.getAttribute("email");
-        String providerId = oAuth2User.getAttribute("sub"); // 구글이 발급하는 사용자 고유 식별자
+        String providerId = oAuth2User.getAttribute("sub");
 
         OAuthLoginCommand command = new OAuthLoginCommand(OAuthProvider.GOOGLE, providerId, email);
         OAuthLoginCommandResult result = oAuthLoginCommandService.login(command);
@@ -91,20 +89,17 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     }
 
     /**
-     * DB에 일치하는 회원이 없는 경우 회원가입 페이지로 리다이렉트.
-     * 이메일을 쿼리 파라미터로 전달해 회원가입 폼에 미리 채워주고,
-     * emailVerified=true 로 표시해 인증 단계를 건너뛸 수 있게 한다.
+     * 신규 사용자 → 인증 완료 증명 토큰을 발급하고, URL에는 토큰만 담아 회원가입 페이지로 리다이렉트.
+     * source=google, emailVerified=true 파라미터는 signup.js가 이메일 인증 UI를 숨기기 위한 화면용 표시일 뿐이며,
+     * 실제 인증 여부는 회원가입 API가 토큰으로 검증한다.
      */
     private void redirectToSignup(HttpServletResponse response, String email) throws IOException {
-        String encodedEmail = Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(email.getBytes(StandardCharsets.UTF_8));
+        String token = emailVerifier.issueVerificationToken(email);
 
-        String redirectUrl = UriComponentsBuilder.fromPath(SIGNUP_REDIRECT_PATH)
-                .queryParam("email", encodedEmail)
-                .queryParam("emailVerified", "true")
-                .queryParam("source", "google")
-                .build()
-                .toUriString();
+        String redirectUrl = SIGNUP_REDIRECT_PATH
+                + "?token=" + token
+                + "&emailVerified=true"
+                + "&source=google";
 
         response.sendRedirect(redirectUrl);
     }

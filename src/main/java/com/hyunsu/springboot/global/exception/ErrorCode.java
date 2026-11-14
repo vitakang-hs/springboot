@@ -21,6 +21,8 @@ public enum ErrorCode {
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "MEMBER_001", "존재하지 않는 회원입니다."),
     USERNAME_DUPLICATED(HttpStatus.CONFLICT, "MEMBER_002", "이미 사용 중인 아이디입니다."),
     EMAIL_DUPLICATED(HttpStatus.CONFLICT, "MEMBER_003", "이미 사용 중인 이메일입니다."),
+    EMAIL_NOT_VERIFIED(HttpStatus.BAD_REQUEST, "MEMBER_004", "이메일 인증이 완료되지 않았습니다."),
+    EMAIL_VERIFICATION_EXPIRED(HttpStatus.BAD_REQUEST, "MEMBER_005", "이메일 인증이 만료되었습니다. 다시 인증해 주세요."),
 
     // ===== Auth (인증) =====
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "AUTH_001", "아이디 또는 비밀번호가 올바르지 않습니다."),

@@ -31,48 +31,57 @@
     let usernameVerified = false;     // 아이디 중복확인 통과 여부
     let emailCodeIssued = false;      // 인증코드 발송 완료 여부
     let emailCodeVerified = false;    // 인증코드 검증 통과 여부 (회원가입 버튼 활성화의 진짜 조건)
+    let emailVerificationToken = null; // 서버가 발급한 인증 완료 증명 토큰 (회원가입 요청에 함께 전송, 서버가 재검증)
     let codeTimerInterval = null;
     let resendCooldownInterval = null;
 
     // ===== 구글 OAuth 리다이렉트 진입 처리 =====
     // OAuth2LoginSuccessHandler가 DB에 없는 신규 사용자를 이 페이지로 보낼 때
-    // ?email=(Base64)&emailVerified=true&source=google 형태로 붙여서 보낸다.
-    // 이미 구글에서 검증된 이메일이므로, 이메일 인증 단계(발송/코드입력/확인)를 통째로 스킵한다.
+    // ?token={UUID}&emailVerified=true&source=google 형태로 붙여서 보낸다.
+    // token은 구글이 검증한 이메일에 대해 서버가 발급한 "인증 완료 증명 토큰"이다 (Redis, TTL 30분).
+    // 이메일은 URL에 직접 노출되지 않으며, POST /api/members/email/verified로 가져온다.
+    // 이 토큰을 회원가입 요청에 그대로 보내면 서버가 이메일 인증 여부를 확인한다 (일반 가입과 같은 방식).
+    // 새로고침 시 토큰이 아직 유효하면 이메일을 다시 가져와 폼을 복원한다.
     initGoogleOAuthEntry();
 
     function initGoogleOAuthEntry() {
         const params = new URLSearchParams(window.location.search);
         const source = params.get('source');
         const isEmailVerified = params.get('emailVerified') === 'true';
-        const encodedEmail = params.get('email');
+        const token = params.get('token');
 
-        if (source !== 'google' || !encodedEmail) return;
+        if (source !== 'google' || !token) return;
 
-        let email;
-        try {
-            email = decodeBase64Url(encodedEmail);
-        } catch (e) {
-            // 디코딩 실패 시 일반 가입 흐름으로 폴백 (잘못된 파라미터는 무시)
-            return;
-        }
+        fetch('/api/members/email/verified', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+        })
+            .then(res => res.json())
+            .then(result => {
+                if (!result.success || !result.data?.email) {
+                    Modal.alert('Google 인증이 만료되었습니다. 다시 시도해 주세요.', {
+                        type: 'error',
+                        onClose: () => { window.location.href = '/'; }
+                    });
+                    return;
+                }
 
-        emailInput.value = email;
+                emailInput.value = result.data.email;
+                emailVerificationToken = token;
 
-        if (isEmailVerified) {
-            applyVerifiedEmailFromGoogle();
-        } else {
-            // emailVerified가 false/누락이면 이메일만 채워주고 인증은 평소대로 진행
-            validateEmail();
-        }
-    }
-
-    // Base64Url(패딩 없음) 디코딩. 핸들러가 Base64.getUrlEncoder().withoutPadding()로 인코딩해 보낸다.
-    function decodeBase64Url(value) {
-        let base64 = value.replace(/-/g, '+').replace(/_/g, '/');
-        while (base64.length % 4 !== 0) {
-            base64 += '=';
-        }
-        return decodeURIComponent(escape(window.atob(base64)));
+                if (isEmailVerified) {
+                    applyVerifiedEmailFromGoogle();
+                } else {
+                    validateEmail();
+                }
+            })
+            .catch(() => {
+                Modal.alert('Google 인증 정보를 불러오는 중 오류가 발생했습니다. 다시 시도해 주세요.', {
+                    type: 'error',
+                    onClose: () => { window.location.href = '/'; }
+                });
+            });
     }
 
     // 이메일 입력란을 잠그고, 발송 버튼을 인증완료 배지로 교체하고, 코드 입력 영역을 숨긴다.
@@ -420,10 +429,11 @@
                 throw new Error(result.message || '인증코드 확인 중 오류가 발생했습니다.');
             }
 
-            const isVerified = result.data;
+            const isVerified = result.data?.verified === true;
 
             if (isVerified) {
                 emailCodeVerified = true;
+                emailVerificationToken = result.data.verificationToken;
                 verifyCodeBtn.textContent = '인증완료';
                 verifyCodeBtn.disabled = true;
                 verifyCodeBtn.classList.add('btn-inline-success');
@@ -481,7 +491,7 @@
             const response = await fetch('/api/members/signup', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password, email })
+                body: JSON.stringify({ username, password, email, emailVerificationToken })
             });
             const result = await response.json();
 

@@ -13,6 +13,7 @@ package com.hyunsu.springboot.member.application.command.dto;
 public record MemberRegisterCommand(
         String username,
         String password,
-        String email
+        String email,
+        String emailVerificationToken
 ) {
 }
