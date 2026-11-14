@@ -142,13 +142,14 @@ src/main/java/com/hyunsu/springboot
  │   │       └─ response                  # UsernameCheckResponse.java, EmailCodeSendResponse.java, MemberMeResponse.java
  │   ├─ application
  │   │   ├─ command
- │   │   │   ├─ dto                  # MemberRegisterCommand.java, EmailCodeVerifyCommand.java, OAuthLoginCommand.java, OAuthLoginCommandResult.java
+ │   │   │   ├─ dto                  # MemberRegisterCommand.java, EmailCodeVerifyCommand.java, EmailCodeVerifyCommandResult.java, OAuthLoginCommand.java, OAuthLoginCommandResult.java
  │   │   │   ├─ MemberRegisterCommandService.java
  │   │   │   ├─ MemberEmailCommandService.java
  │   │   │   └─ OAuthLoginCommandService.java   # 소셜 로그인 시 회원 조회/연동 처리 (신규 회원은 가입시키지 않고 결과만 반환)
  │   │   └─ query
  │   │       ├─ MemberAvailabilityQueryService.java   # 아이디 등 중복확인
- │   │       └─ MemberMeQueryService.java               # 로그인한 본인 정보 조회
+ │   │       ├─ MemberMeQueryService.java               # 로그인한 본인 정보 조회
+ │   │       └─ VerifiedEmailQueryService.java          # 이메일 인증 완료 토큰으로 이메일 조회 (구글 가입 진입 시)
  │   ├─ domain
  │   │   ├─ model
  │   │   │   ├─ entity                  # Member.java (Aggregate Root), MemberHistory.java, MemberOAuth.java
@@ -158,7 +159,7 @@ src/main/java/com/hyunsu/springboot
  │   └─ infrastructure
  │       ├─ repository                # Repository 구현체 (JPA, 현재는 Spring Data JPA 자동 구현이라 비어있음)
  │       └─ redis
- │           └─ RedisEmailVerifier.java   # EmailVerifier의 Redis 구현체 (이메일 인증코드 발급/검증)
+ │           └─ RedisEmailVerifier.java   # EmailVerifier의 Redis 구현체 (이메일 인증코드 발급/검증, 인증 완료 토큰 관리)
  │
  ├─ board                           # 게시판 도메인 (Aggregate: Post)
  │   ├─ presentation
@@ -406,6 +407,23 @@ system_config_group (Aggregate Root)  -- 설정 페이지 좌측 메뉴(타이�
 - 비밀번호는 검색이 필요 없는 정보이므로 BCrypt 단방향 암호화만 적용합니다.
 - 암호화/해시에 사용하는 키와 salt는 `application-local.yml`의 `crypto.*` 값으로 관리하며, Git에는 포함되지 않습니다.
 
+### 이메일 인증 검증 (회원가입)
+
+화면(JS)의 "인증 완료" 상태만 믿으면 `POST /api/members/signup`을 직접 호출해 인증 없이 남의 이메일로 가입할 수 있습니다. 그래서 서버가 **이메일 인증 완료 토큰**으로 직접 확인합니다.
+
+```
+[일반 가입]  인증코드 발송 → POST /api/members/email/verify-code 성공 → 응답으로 verificationToken 발급
+[구글 가입]  OAuth2LoginSuccessHandler가 구글이 검증한 이메일로 verificationToken 발급 → /signup?token=...
+                         ↓ (두 경로 모두 같은 토큰)
+POST /api/members/signup { username, password, email, emailVerificationToken }
+  → MemberRegisterCommandService: 토큰이 가리키는 이메일 == 요청 email 인지 확인 → 가입 → 토큰 삭제(1회용)
+```
+
+- 토큰은 Redis에 `email-verified-token:{UUID} → 이메일` 형태로 30분간 저장됩니다 (`RedisEmailVerifier`).
+- 토큰이 없거나 만료되면 `MEMBER_005`, 다른 이메일로 받은 토큰이면 `MEMBER_004`로 거부합니다.
+- 아이디 중복 등으로 가입이 실패하면 토큰을 남겨두어, 아이디만 바꿔 다시 시도할 때 재인증이 필요 없습니다.
+- 인증 여부를 "이메일 기준 표시(email-verified:{이메일})"가 아닌 토큰으로 관리하는 이유: 이메일 기준이면 피해자가 인증을 마친 직후~가입 전 사이에 제3자가 같은 이메일로 먼저 가입할 수 있습니다. 토큰은 인증을 통과한 브라우저만 가지고 있습니다.
+
 ### 계정 잠금 정책
 
 - 로그인 실패 시 `login_fail_count`를 1씩 증가시킵니다.
@@ -542,6 +560,7 @@ admin/*.html
 - OAuth2 소셜 로그인 (기존 회원 로그인/계정 통합. 신규 사용자는 회원가입 페이지로 안내)
 - Redis 기반 ID 채번
 - Redis 기반 이메일 인증코드 발급 및 만료 처리 (TTL)
+- 회원가입 시 이메일 인증 여부 서버 검증 (인증 완료 토큰)
 - 로그인 실패 5회 시 계정 잠금
 
 ### 게시판
@@ -601,11 +620,14 @@ Spring Security의 OAuth2 Login 기능을 사용합니다. 기본적으로 세�
    - /oauth/success 페이지(JS)가 쿼리 파라미터에서 Access Token을 꺼내 메모리에 저장하고,
      보안을 위해 history.replaceState()로 URL에서 토큰 흔적을 제거
 5-B. 신규 사용자 (needsSignup=true):
-   - 토큰을 발급하지 않고, 이메일을 Base64Url(패딩 없음)로 인코딩해 쿼리 파라미터에 담아
-     회원가입 페이지(/html/auth/signup.html?email={인코딩된 이메일}&emailVerified=true&source=google)로 리다이렉트
-   - signup.js가 source=google을 감지하면: 이메일 input에 디코딩한 값을 채워 readOnly로 잠그고,
-     이메일 인증코드 발송/입력 영역을 전부 숨기고 인증완료 배지로 교체한 뒤, 인증 상태를 통과 처리
+   - JWT는 발급하지 않고, 구글이 검증한 이메일로 "이메일 인증 완료 토큰"을 발급(EmailVerifier, TTL 30분)해
+     회원가입 페이지(/signup?token={UUID}&emailVerified=true&source=google)로 리다이렉트
+     (이메일은 URL에 노출되지 않음. 이전에는 Base64로 인코딩해 URL에 담았으나 디코딩하면 평문이 드러나 변경)
+   - signup.js가 source=google을 감지하면: POST /api/members/email/verified로 토큰에 해당하는 이메일을 받아
+     input에 채워 readOnly로 잠그고, 이메일 인증코드 발송/입력 영역을 숨기고 인증완료 배지로 교체
    - 사용자는 아이디/비밀번호만 입력하면 회원가입을 완료할 수 있음 (이메일 인증 단계는 구글 인증으로 대체)
+   - 회원가입 요청에는 이 토큰을 함께 보내며, 서버는 일반 가입과 동일하게 토큰으로 이메일 인증 여부를 검증
+     (아래 "이메일 인증 검증" 참고)
    - 이렇게 가입이 완료되면 이후 동일한 구글 계정으로 다시 로그인 시 emailHash로 매칭되어 4번의
      "이메일 일치 → 연동 추가" 경로를 타게 됨 (단, member_oauth 연동 자체는 가입 시점이 아니라
      다음 구글 로그인 시점에 비로소 생성됨)

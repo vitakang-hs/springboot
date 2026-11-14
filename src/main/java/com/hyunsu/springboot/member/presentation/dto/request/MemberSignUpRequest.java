@@ -8,9 +8,11 @@ import jakarta.validation.constraints.Size;
 /**
  * 회원가입 요청.
  *
- * emailCode는 받지 않는다 - 화면(JS)에서 이미 /api/members/email/verify-code로
- * 인증을 완료한 뒤에만 회원가입 버튼이 활성화되는 흐름이라, 서버는 그 결과를 신뢰하고 진행한다.
- * (재검증하지 않는 정책. 단, 인증코드 자체는 검증 성공 시 Redis에서 즉시 삭제되므로 재사용 불가)
+ * emailVerificationToken: 이메일 인증을 통과했다는 증명 토큰.
+ *  - 일반 가입: /api/members/email/verify-code 성공 응답으로 받은 값
+ *  - 구글 가입: OAuth2LoginSuccessHandler가 회원가입 페이지 URL(?token=)에 담아준 값
+ * 서버는 화면(JS)의 인증 완료 상태를 믿지 않고, 이 토큰이 가리키는 이메일과 요청 email이
+ * 일치하는지 직접 확인한다 (MemberRegisterCommandService).
  */
 public record MemberSignUpRequest(
 
@@ -24,6 +26,9 @@ public record MemberSignUpRequest(
 
         @NotBlank(message = "이메일을 입력해 주세요.")
         @Email(message = "올바른 이메일 형식이 아닙니다.")
-        String email
+        String email,
+
+        @NotBlank(message = "이메일 인증을 먼저 완료해 주세요.")
+        String emailVerificationToken
 ) {
 }

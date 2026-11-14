@@ -4,14 +4,19 @@ import com.hyunsu.springboot.global.common.response.ApiResponse;
 import com.hyunsu.springboot.member.application.command.MemberEmailCommandService;
 import com.hyunsu.springboot.member.application.command.MemberRegisterCommandService;
 import com.hyunsu.springboot.member.application.command.dto.EmailCodeVerifyCommand;
+import com.hyunsu.springboot.member.application.command.dto.EmailCodeVerifyCommandResult;
 import com.hyunsu.springboot.member.application.command.dto.MemberRegisterCommand;
 import com.hyunsu.springboot.member.application.query.MemberAvailabilityQueryService;
 import com.hyunsu.springboot.member.application.query.MemberMeQueryService;
+import com.hyunsu.springboot.member.application.query.VerifiedEmailQueryService;
 import com.hyunsu.springboot.member.presentation.dto.request.EmailCodeVerifyRequest;
+import com.hyunsu.springboot.member.presentation.dto.request.EmailVerificationTokenRequest;
 import com.hyunsu.springboot.member.presentation.dto.request.MemberSignUpRequest;
 import com.hyunsu.springboot.member.presentation.dto.response.EmailCodeSendResponse;
+import com.hyunsu.springboot.member.presentation.dto.response.EmailCodeVerifyResponse;
 import com.hyunsu.springboot.member.presentation.dto.response.MemberMeResponse;
 import com.hyunsu.springboot.member.presentation.dto.response.UsernameCheckResponse;
+import com.hyunsu.springboot.member.presentation.dto.response.VerifiedEmailResponse;
 import com.hyunsu.springboot.member.presentation.mapper.MemberMapper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -44,6 +49,7 @@ public class MemberController {
     private final MemberMeQueryService memberMeQueryService;
     private final MemberEmailCommandService memberEmailCommandService;
     private final MemberRegisterCommandService memberRegisterCommandService;
+    private final VerifiedEmailQueryService verifiedEmailQueryService;
     private final MemberMapper memberMapper;
 
     /**
@@ -85,12 +91,26 @@ public class MemberController {
     /**
      * 이메일 인증코드 검증.
      * POST /api/members/email/verify-code
+     *
+     * 성공 시 인증 완료 증명 토큰(verificationToken)을 함께 내려준다. 회원가입 요청 시 이 토큰을 보내야 한다.
      */
     @PostMapping("/email/verify-code")
-    public ApiResponse<Boolean> verifyEmailCode(@RequestBody @Valid EmailCodeVerifyRequest request) {
+    public ApiResponse<EmailCodeVerifyResponse> verifyEmailCode(@RequestBody @Valid EmailCodeVerifyRequest request) {
         EmailCodeVerifyCommand command = memberMapper.toCommand(request);
-        boolean verified = memberEmailCommandService.verifyCode(command);
-        return ApiResponse.success(verified);
+        EmailCodeVerifyCommandResult result = memberEmailCommandService.verifyCode(command);
+        return ApiResponse.success(memberMapper.toResponse(result));
+    }
+
+    /**
+     * 인증 완료 증명 토큰으로 인증된 이메일 조회.
+     * POST /api/members/email/verified
+     *
+     * 구글 신규 가입자가 회원가입 페이지(?token=)에 진입했을 때 이메일을 폼에 채우기 위해 사용한다.
+     */
+    @PostMapping("/email/verified")
+    public ApiResponse<VerifiedEmailResponse> getVerifiedEmail(@RequestBody @Valid EmailVerificationTokenRequest request) {
+        String email = verifiedEmailQueryService.getVerifiedEmail(request.token());
+        return ApiResponse.success(new VerifiedEmailResponse(email));
     }
 
     /**

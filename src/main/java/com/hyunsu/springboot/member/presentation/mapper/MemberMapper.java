@@ -1,9 +1,11 @@
 package com.hyunsu.springboot.member.presentation.mapper;
 
 import com.hyunsu.springboot.member.application.command.dto.EmailCodeVerifyCommand;
+import com.hyunsu.springboot.member.application.command.dto.EmailCodeVerifyCommandResult;
 import com.hyunsu.springboot.member.application.command.dto.MemberRegisterCommand;
 import com.hyunsu.springboot.member.presentation.dto.request.EmailCodeVerifyRequest;
 import com.hyunsu.springboot.member.presentation.dto.request.MemberSignUpRequest;
+import com.hyunsu.springboot.member.presentation.dto.response.EmailCodeVerifyResponse;
 import org.springframework.stereotype.Component;
 
 /**
@@ -20,7 +22,8 @@ public class MemberMapper {
         return new MemberRegisterCommand(
                 request.username(),
                 request.password(),
-                request.email()
+                request.email(),
+                request.emailVerificationToken()
         );
     }
 
@@ -29,5 +32,9 @@ public class MemberMapper {
                 request.email(),
                 request.code()
         );
+    }
+
+    public EmailCodeVerifyResponse toResponse(EmailCodeVerifyCommandResult result) {
+        return new EmailCodeVerifyResponse(result.verified(), result.verificationToken());
     }
 }

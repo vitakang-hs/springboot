@@ -1,6 +1,7 @@
 package com.hyunsu.springboot.member.application.command;
 
 import com.hyunsu.springboot.member.application.command.dto.EmailCodeVerifyCommand;
+import com.hyunsu.springboot.member.application.command.dto.EmailCodeVerifyCommandResult;
 import com.hyunsu.springboot.member.domain.service.EmailVerifier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,7 +22,15 @@ public class MemberEmailCommandService {
         return emailVerifier.issueCode(email);
     }
 
-    public boolean verifyCode(EmailCodeVerifyCommand command) {
-        return emailVerifier.verifyCode(command.email(), command.code());
+    /**
+     * 인증코드 검증. 성공하면 회원가입 시 제출할 인증 완료 증명 토큰을 발급한다.
+     */
+    public EmailCodeVerifyCommandResult verifyCode(EmailCodeVerifyCommand command) {
+        boolean verified = emailVerifier.verifyCode(command.email(), command.code());
+        if (!verified) {
+            return EmailCodeVerifyCommandResult.failure();
+        }
+        String token = emailVerifier.issueVerificationToken(command.email());
+        return EmailCodeVerifyCommandResult.success(token);
     }
 }
