@@ -362,8 +362,7 @@
                 throw new Error(result.message || '인증코드 발송 중 오류가 발생했습니다.');
             }
 
-            // 테스트용: 서버가 발급한 코드를 alert으로 표시 (실제 메일 발송 연동 전까지의 임시 조치)
-            Modal.alert(`[테스트용] 발급된 인증코드: ${result.data.code}`);
+            Modal.alert('인증코드를 이메일로 발송했습니다. 메일함을 확인해 주세요.', { type: 'success' });
 
             emailCodeInput.disabled = false;
             emailCodeInput.value = '';

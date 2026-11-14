@@ -23,6 +23,8 @@ public enum ErrorCode {
     EMAIL_DUPLICATED(HttpStatus.CONFLICT, "MEMBER_003", "이미 사용 중인 이메일입니다."),
     EMAIL_NOT_VERIFIED(HttpStatus.BAD_REQUEST, "MEMBER_004", "이메일 인증이 완료되지 않았습니다."),
     EMAIL_VERIFICATION_EXPIRED(HttpStatus.BAD_REQUEST, "MEMBER_005", "이메일 인증이 만료되었습니다. 다시 인증해 주세요."),
+    EMAIL_CODE_RESEND_TOO_SOON(HttpStatus.TOO_MANY_REQUESTS, "MEMBER_006", "인증코드는 1분에 한 번만 발송할 수 있습니다. 잠시 후 다시 시도해 주세요."),
+    EMAIL_SEND_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "MEMBER_007", "인증코드 메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요."),
 
     // ===== Auth (인증) =====
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "AUTH_001", "아이디 또는 비밀번호가 올바르지 않습니다."),

@@ -37,6 +37,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter'
     implementation 'org.springframework.boot:spring-boot-starter-validation'   // @Valid, DTO 검증
+    implementation 'org.springframework.boot:spring-boot-starter-mail'         // 이메일 인증코드 발송 (SMTP)
 
     // Security
     implementation 'org.springframework.boot:spring-boot-starter-security'
