@@ -139,7 +139,7 @@ src/main/java/com/hyunsu/springboot
  │   │   ├─ mapper                   # MemberMapper.java (Request DTO -> Command 변환)
  │   │   └─ dto
  │   │       ├─ request
- │   │       └─ response                  # UsernameCheckResponse.java, EmailCodeSendResponse.java, MemberMeResponse.java
+ │   │       └─ response                  # UsernameCheckResponse.java, EmailCodeVerifyResponse.java, VerifiedEmailResponse.java, MemberMeResponse.java
  │   ├─ application
  │   │   ├─ command
  │   │   │   ├─ dto                  # MemberRegisterCommand.java, EmailCodeVerifyCommand.java, EmailCodeVerifyCommandResult.java, OAuthLoginCommand.java, OAuthLoginCommandResult.java
@@ -155,11 +155,15 @@ src/main/java/com/hyunsu/springboot
  │   │   │   ├─ entity                  # Member.java (Aggregate Root), MemberHistory.java, MemberOAuth.java
  │   │   │   └─ vo                      # Role, MemberStatus, MemberHistoryType, OAuthProvider 등 값 객체
  │   │   ├─ repository               # MemberRepository.java, MemberHistoryRepository.java, MemberOAuthRepository.java (인터페이스, Spring Data JPA가 구현)
- │   │   └─ service                  # EmailVerifier.java (인터페이스 - infrastructure 구현을 application이 직접 의존하지 않도록 추상화)
+ │   │   └─ service                  # EmailVerifier.java, EmailSender.java (인터페이스 - infrastructure 구현을 application이 직접 의존하지 않도록 추상화)
  │   └─ infrastructure
  │       ├─ repository                # Repository 구현체 (JPA, 현재는 Spring Data JPA 자동 구현이라 비어있음)
- │       └─ redis
- │           └─ RedisEmailVerifier.java   # EmailVerifier의 Redis 구현체 (이메일 인증코드 발급/검증, 인증 완료 토큰 관리)
+ │       ├─ redis
+ │       │   └─ RedisEmailVerifier.java   # EmailVerifier의 Redis 구현체 (이메일 인증코드 발급/검증, 인증 완료 토큰 관리)
+ │       └─ mail
+ │           ├─ EmailSenderConfig.java   # spring.mail.host 유무에 따라 아래 구현체 중 하나를 등록
+ │           ├─ SmtpEmailSender.java     # EmailSender의 SMTP 구현체 (실제 메일 발송)
+ │           └─ LoggingEmailSender.java  # EmailSender의 로그 출력 구현체 (SMTP 없이 로컬 개발할 때)
  │
  ├─ board                           # 게시판 도메인 (Aggregate: Post)
  │   ├─ presentation
@@ -424,6 +428,15 @@ POST /api/members/signup { username, password, email, emailVerificationToken }
 - 아이디 중복 등으로 가입이 실패하면 토큰을 남겨두어, 아이디만 바꿔 다시 시도할 때 재인증이 필요 없습니다.
 - 인증 여부를 "이메일 기준 표시(email-verified:{이메일})"가 아닌 토큰으로 관리하는 이유: 이메일 기준이면 피해자가 인증을 마친 직후~가입 전 사이에 제3자가 같은 이메일로 먼저 가입할 수 있습니다. 토큰은 인증을 통과한 브라우저만 가지고 있습니다.
 
+### 인증코드 발송 / 남용 방지
+
+- 인증코드는 **메일로만** 전달하고 API 응답에는 담지 않습니다. (`POST /api/members/email/send-code`는 성공 여부만 응답)
+- 발송은 `member.domain.service.EmailSender` 인터페이스로 추상화했습니다.
+  - `spring.mail.host`가 설정되어 있으면 `SmtpEmailSender`가 실제로 메일을 보냅니다.
+  - 설정이 없으면 `LoggingEmailSender`가 서버 로그에 코드를 출력합니다 (SMTP 계정 없이 로컬에서 개발할 때). 앱 시작 시 경고 로그로 알립니다.
+- 같은 이메일로는 **1분에 한 번만** 발송할 수 있습니다 (Redis `SET NX`, 초과 시 `429 MEMBER_006`). 화면의 60초 쿨다운과 별개로 서버가 직접 막아, API를 반복 호출해 남에게 메일을 퍼붓는 것을 방지합니다.
+- 인증코드를 **5회 연속 틀리면 코드를 폐기**합니다. 6자리 숫자는 100만 가지뿐이라 횟수 제한이 없으면 3분 안에 무차별 대입이 가능하기 때문입니다. 폐기 후에는 코드를 다시 발송해야 합니다.
+
 ### 계정 잠금 정책
 
 - 로그인 실패 시 `login_fail_count`를 1씩 증가시킵니다.
@@ -560,6 +573,7 @@ admin/*.html
 - OAuth2 소셜 로그인 (기존 회원 로그인/계정 통합. 신규 사용자는 회원가입 페이지로 안내)
 - Redis 기반 ID 채번
 - Redis 기반 이메일 인증코드 발급 및 만료 처리 (TTL)
+- 인증코드 메일 발송 (SMTP, 미설정 시 서버 로그 출력), 재발송 1분 제한, 5회 오입력 시 코드 폐기
 - 회원가입 시 이메일 인증 여부 서버 검증 (인증 완료 토큰)
 - 로그인 실패 5회 시 계정 잠금
 
@@ -698,6 +712,27 @@ hyunsu:
     secret: { 위에서 생성한 값 }
     access-token-validity-minutes: 30
     refresh-token-validity-days: 14
+```
+
+#### 메일 발송 (SMTP) 설정 (선택)
+
+설정하지 않으면 인증코드가 메일 대신 서버 로그에 출력됩니다 (`[메일 미발송 - 로컬 개발용] 인증코드: ...`). 실제로 메일을 보내려면 `application-local.yml`에 추가합니다. (Gmail은 계정 비밀번호가 아닌 [앱 비밀번호](https://myaccount.google.com/apppasswords)를 사용)
+
+```yaml
+spring:
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: { 보내는 Gmail 주소 }
+    password: { 앱 비밀번호 16자리 }
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+
+hyunsu:
+  mail:
+    from: { 보내는 Gmail 주소 }
+    service-name: hyunsu   # 메일 제목 앞에 붙는 이름
 ```
 
 #### 개인정보 암호화 키 생성

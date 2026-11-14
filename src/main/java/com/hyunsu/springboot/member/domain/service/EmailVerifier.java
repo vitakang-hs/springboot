@@ -22,12 +22,14 @@ public interface EmailVerifier {
 
     /**
      * 인증코드 발급.
-     * @return 발급된 6자리 코드
+     * 같은 이메일로 재발급 대기시간(1분) 안에 다시 요청하면 발급하지 않는다 (메일 폭탄 방지).
+     * @return 발급된 6자리 코드. 재발급 대기시간 중이면 empty
      */
-    String issueCode(String email);
+    Optional<String> issueCode(String email);
 
     /**
      * 인증코드 검증. 성공 시 코드는 즉시 삭제된다 (재사용 불가).
+     * 연속으로 여러 번(5회) 틀리면 코드를 폐기한다 (무차별 대입 방지) - 이후에는 재발급이 필요하다.
      */
     boolean verifyCode(String email, String code);
 

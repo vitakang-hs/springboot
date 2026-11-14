@@ -23,6 +23,16 @@ spring:
               - email
               - profile
 
+  # 메일 발송 (선택) - 설정하지 않으면 인증코드가 메일 대신 서버 로그에 출력된다
+  # mail:
+  #   host: smtp.gmail.com
+  #   port: 587
+  #   username: your_gmail@gmail.com
+  #   password: your_app_password   # Gmail 앱 비밀번호
+  #   properties:
+  #     mail.smtp.auth: true
+  #     mail.smtp.starttls.enable: true
+
 # Swagger 관련 선택 설정 (필요 시)
 springdoc:
   api-docs:
@@ -43,6 +53,9 @@ hyunsu:
       salt: your_salt
     hash:
       salt: your_hash
+  # mail:
+  #   from: your_gmail@gmail.com
+  #   service-name: hyunsu
   auth:
     cookie:
       secure: false   # 로컬/개발(HTTP)은 false. 운영(HTTPS) 프로필에서 true로 오버라이드 예정

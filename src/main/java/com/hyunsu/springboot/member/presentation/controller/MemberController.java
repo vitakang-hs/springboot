@@ -12,7 +12,6 @@ import com.hyunsu.springboot.member.application.query.VerifiedEmailQueryService;
 import com.hyunsu.springboot.member.presentation.dto.request.EmailCodeVerifyRequest;
 import com.hyunsu.springboot.member.presentation.dto.request.EmailVerificationTokenRequest;
 import com.hyunsu.springboot.member.presentation.dto.request.MemberSignUpRequest;
-import com.hyunsu.springboot.member.presentation.dto.response.EmailCodeSendResponse;
 import com.hyunsu.springboot.member.presentation.dto.response.EmailCodeVerifyResponse;
 import com.hyunsu.springboot.member.presentation.dto.response.MemberMeResponse;
 import com.hyunsu.springboot.member.presentation.dto.response.UsernameCheckResponse;
@@ -79,13 +78,16 @@ public class MemberController {
     /**
      * 이메일 인증코드 발송.
      * POST /api/members/email/send-code?email=test@example.com
+     *
+     * 코드는 메일로만 전달하고 응답에는 담지 않는다.
+     * 같은 이메일로 1분 안에 다시 요청하면 429(MEMBER_006).
      */
     @PostMapping("/email/send-code")
-    public ApiResponse<EmailCodeSendResponse> sendEmailCode(
+    public ApiResponse<Void> sendEmailCode(
             @RequestParam @NotBlank @Email String email
     ) {
-        String code = memberEmailCommandService.sendVerificationCode(email);
-        return ApiResponse.success(new EmailCodeSendResponse(code));
+        memberEmailCommandService.sendVerificationCode(email);
+        return ApiResponse.success();
     }
 
     /**
