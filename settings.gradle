@@ -1,1 +1,6 @@
+plugins {
+    // 로컬에 toolchain 버전(Java 26)의 JDK가 없으면 Gradle이 자동으로 내려받는다 (CI 환경에서도 동일)
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
 rootProject.name = 'springboot'
