@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>게시글 - hyunsu-delveloper</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/admin/admin-layout.css">
+    <link rel="stylesheet" href="/css/admin/board.css">
+</head>
+<body>
+
+<canvas id="background"></canvas>
+
+<div id="adminLayout"></div>
+
+<main class="admin-content">
+    <div class="board-header">
+        <a href="/board" class="board-back" id="backLink">← 목록으로</a>
+    </div>
+
+    <!-- 게시글: board-detail.js가 채운다 -->
+    <article class="post-detail" id="postDetail" hidden>
+        <header class="post-detail-head">
+            <div class="post-detail-title-row">
+                <span id="postCategory"></span>
+                <h2 class="post-detail-title" id="postTitle"></h2>
+            </div>
+            <div class="post-detail-meta">
+                <span id="postAuthor"></span>
+                <span class="meta-dot">·</span>
+                <span id="postDate"></span>
+                <span class="meta-dot">·</span>
+                <span>조회 <span id="postViews"></span></span>
+            </div>
+        </header>
+
+        <div class="post-detail-content" id="postContent"></div>
+
+        <div class="post-detail-actions" id="ownerActions" hidden>
+            <button type="button" class="btn-ghost" id="editBtn">수정</button>
+            <button type="button" class="btn-ghost btn-ghost--danger" id="deleteBtn">삭제</button>
+        </div>
+    </article>
+
+    <!-- 댓글 -->
+    <section class="comment-section" id="commentSection" hidden>
+        <h3 class="comment-section-title">댓글 <span class="comment-count" id="commentTotal">0</span></h3>
+
+        <ul class="comment-list" id="commentList"></ul>
+
+        <form class="comment-form" id="commentForm">
+            <textarea class="comment-input" id="commentInput" maxlength="1000" rows="3"
+                      placeholder="댓글을 입력하세요 (최대 1,000자)"></textarea>
+            <div class="comment-form-foot">
+                <span class="char-count"><span id="commentLength">0</span> / 1,000</span>
+                <button type="submit" class="btn-write" id="commentSubmitBtn" disabled>등록</button>
+            </div>
+        </form>
+    </section>
+</main>
+
+<script src="/js/common/modal.js"></script>
+<script src="/js/common/common.js"></script>
+<script src="/js/common/background.js"></script>
+<script src="/js/admin/admin-layout.js"></script>
+<script src="/js/admin/board/board-common.js"></script>
+<script src="/js/admin/board/board-detail.js"></script>
+</body>
+</html>

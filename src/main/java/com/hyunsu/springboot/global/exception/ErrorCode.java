@@ -26,6 +26,14 @@ public enum ErrorCode {
     EMAIL_CODE_RESEND_TOO_SOON(HttpStatus.TOO_MANY_REQUESTS, "MEMBER_006", "인증코드는 1분에 한 번만 발송할 수 있습니다. 잠시 후 다시 시도해 주세요."),
     EMAIL_SEND_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "MEMBER_007", "인증코드 메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요."),
 
+    // ===== Board (게시판) =====
+    POST_NOT_FOUND(HttpStatus.NOT_FOUND, "BOARD_001", "존재하지 않거나 삭제된 게시글입니다."),
+    POST_FORBIDDEN(HttpStatus.FORBIDDEN, "BOARD_002", "본인이 작성한 게시글만 수정/삭제할 수 있습니다."),
+    POST_CATEGORY_INVALID(HttpStatus.BAD_REQUEST, "BOARD_003", "존재하지 않는 게시글 구분입니다."),
+    POST_CATEGORY_ADMIN_ONLY(HttpStatus.FORBIDDEN, "BOARD_004", "공지는 관리자만 작성할 수 있습니다."),
+    COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "BOARD_005", "존재하지 않거나 삭제된 댓글입니다."),
+    COMMENT_FORBIDDEN(HttpStatus.FORBIDDEN, "BOARD_006", "본인이 작성한 댓글만 삭제할 수 있습니다."),
+
     // ===== Auth (인증) =====
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "AUTH_001", "아이디 또는 비밀번호가 올바르지 않습니다."),
     ACCOUNT_LOCKED(HttpStatus.LOCKED, "AUTH_002", "로그인 실패 횟수를 초과하여 계정이 잠겼습니다."),

@@ -16,8 +16,9 @@ public record PostListResult(
         Long postId,
         String category,        // 카테고리 코드 (NOTICE, FREE, QNA)
         String title,
-        String authorUsername,  // member.username (소셜 전용 계정은 "(소셜)")
+        String authorUsername,  // member.username
         long commentCount,
+        int viewCount,
         boolean isNotice,       // category = 'NOTICE' 여부
         LocalDateTime createdAt
 ) {}

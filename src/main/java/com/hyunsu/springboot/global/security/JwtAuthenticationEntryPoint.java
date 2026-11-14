@@ -1,6 +1,5 @@
 package com.hyunsu.springboot.global.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hyunsu.springboot.global.common.response.ApiResponse;
 import com.hyunsu.springboot.global.exception.ErrorCode;
 import jakarta.servlet.ServletException;
@@ -13,6 +12,8 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
 import org.springframework.http.HttpStatus;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import java.io.IOException;
 
 /**
@@ -22,7 +23,14 @@ import java.io.IOException;
 @Component
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    // 직접 new ObjectMapper()를 만들면 Spring MVC 응답과 설정(LocalDateTime 직렬화 등)이 달라진다.
+    // (Jackson 2 기본 ObjectMapper는 ApiResponse.timestamp(LocalDateTime)를 직렬화하지 못해 401 대신 500이 났음)
+    // 그래서 Spring Boot가 구성한 JsonMapper(Jackson 3)를 주입받아 다른 API 응답과 같은 형식으로 쓴다.
+    private final JsonMapper jsonMapper;
+
+    public JwtAuthenticationEntryPoint(JsonMapper jsonMapper) {
+        this.jsonMapper = jsonMapper;
+    }
 
     @Override
     public void commence(
@@ -41,6 +49,6 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
                 "인증이 필요합니다. 로그인 후 다시 시도해 주세요."
         );
 
-        response.getWriter().write(objectMapper.writeValueAsString(body));
+        response.getWriter().write(jsonMapper.writeValueAsString(body));
     }
 }

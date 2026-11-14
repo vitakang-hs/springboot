@@ -124,7 +124,7 @@ application (Service) → domain.service (인터페이스) ← infrastructure (�
 > `auth` 도메인은 별도 JPA Aggregate를 두지 않습니다. Refresh Token은 DB가 아닌 Redis에만 저장하므로(`RefreshTokenManager.java` 인터페이스 + `RedisRefreshTokenManager.java` 구현체), Aggregate Root 개념이 적용되는 영속성 엔티티가 존재하지 않습니다.
 
 **적용 규칙**
-1. Repository는 **Aggregate Root 단위로만 생성**합니다. (`CommentRepository`는 별도로 두지 않고, `Comment.java`는 `PostRepository`/`Post.java`를 통해서만 조회·생성·삭제)
+1. Repository는 **Aggregate Root 단위로 생성**하는 것을 원칙으로 합니다. 예외적으로 `Comment`는 `Post` 엔티티에 컬렉션(`@OneToMany`)으로 두지 않고 `CommentRepository`로 직접 저장합니다 (게시글을 읽을 때마다 댓글 전체를 로딩하지 않기 위함). 대신 Aggregate 불변식은 board의 Command Service가 지킵니다: 댓글 작성 전 게시글이 살아있는지 확인(`CommentWriteCommandService`), 게시글 삭제 시 댓글 동반 soft delete(`PostWriteCommandService`), 댓글 삭제 시 `postId`까지 일치하는지 확인.
 2. 다른 Aggregate를 참조할 때는 **객체 참조 대신 ID 참조**를 사용합니다. (예: `Post.java`, `Comment.java`는 작성자를 `Member.java` 객체가 아닌 `memberId`로 보관 → Aggregate 간 결합도를 낮춤. 게시글 목록 조회 시 작성자명이 필요하면 QueryDSL에서 `member` 테이블을 직접 LEFT JOIN하여 가져오며, 이는 조회 전용 흐름이라 Aggregate 경계 원칙과 충돌하지 않습니다.)
 3. 하나의 트랜잭션에서는 **하나의 Aggregate만 수정**하는 것을 원칙으로 합니다.
 
@@ -167,19 +167,26 @@ src/main/java/com/hyunsu/springboot
  │
  ├─ board                           # 게시판 도메인 (Aggregate: Post)
  │   ├─ presentation
- │   │   ├─ controller               # PostController.java (게시글 목록 등)
- │   │   ├─ mapper                   # PostMapper.java (PostListResult -> PostListItemResponse 변환, PostCategory enum -> 라벨 매핑)
+ │   │   ├─ controller               # PostController.java (게시글 목록/상세/작성/수정/삭제, 댓글 작성/삭제, 작성 가능 구분 목록)
+ │   │   ├─ mapper                   # PostMapper.java (Request -> Command, Result -> Response 변환, 카테고리 라벨/"내 글인지" 계산)
  │   │   └─ dto
- │   │       └─ response              # PostListItemResponse.java
+ │   │       ├─ request               # PostWriteRequest.java, CommentCreateRequest.java
+ │   │       └─ response              # PostListItemResponse.java, PostDetailResponse.java, CommentResponse.java, PostCategoryResponse.java, IdResponse.java
  │   ├─ application
+ │   │   ├─ command
+ │   │   │   ├─ dto                  # PostWriteCommand.java, CommentCreateCommand.java
+ │   │   │   ├─ PostWriteCommandService.java       # 게시글 작성/수정/삭제 (카테고리 권한, 작성자 본인 확인, 댓글 동반 삭제)
+ │   │   │   ├─ CommentWriteCommandService.java    # 댓글 작성/삭제 (게시글 존재 확인, 작성자 본인 확인)
+ │   │   │   └─ PostViewCountCommandService.java   # 조회수 증가 (원자적 UPDATE)
  │   │   └─ query
- │   │       ├─ dto                  # PostListResult.java(QueryDSL Projection 결과), PostSearchCondition.java(검색 조건)
- │   │       └─ PostListQueryService.java   # 게시글 목록 조회
+ │   │       ├─ dto                  # PostListResult, PostSearchCondition, PostSearchType, PostDetailResult, CommentResult
+ │   │       ├─ PostListQueryService.java     # 게시글 목록 조회
+ │   │       └─ PostDetailQueryService.java   # 게시글 상세 + 댓글 목록 조회
  │   ├─ domain
  │   │   ├─ model
  │   │   │   ├─ entity
  │   │   │   │   ├─ Post.java            # Aggregate Root
- │   │   │   │   └─ Comment.java          # Post에 종속 (Post를 통해서만 생성/삭제)
+ │   │   │   │   └─ Comment.java          # Post에 종속 (CommentRepository로 저장, 불변식은 Command Service가 보장)
  │   │   │   └─ vo
  │   │   │       └─ PostCategory.java      # 게시글 카테고리 enum (NOTICE/FREE/QNA). V7부터 DB(공통코드) 대신 enum으로 관리
  │   │   ├─ repository               # PostRepository.java(쓰기, Spring Data JPA), PostQueryRepository.java(읽기 인터페이스), CommentRepository.java
@@ -187,7 +194,7 @@ src/main/java/com/hyunsu/springboot
  │   └─ infrastructure
  │       └─ repository
  │           └─ querydsl
- │               └─ PostQueryRepositoryImpl.java   # PostQueryRepository의 QueryDSL 구현체. member 테이블 INNER JOIN(작성자명), 댓글 수 서브쿼리, 공지 상단 고정 정렬
+ │               └─ PostQueryRepositoryImpl.java   # PostQueryRepository의 QueryDSL 구현체. member 테이블 INNER JOIN(작성자명), 댓글 수 서브쿼리, 공지 상단 고정 정렬, 검색 대상별 조건, 상세/댓글 조회
  │
  ├─ auth                            # 인증/인가 (로그인, 토큰, OAuth2)
  │   ├─ presentation
@@ -342,7 +349,7 @@ FREE("자유", adminOnly = false)
 QNA("질문", adminOnly = false)
 ```
 
-- `adminOnly`는 해당 카테고리에 글을 쓸 수 있는 권한이 관리자로 제한되는지를 나타냅니다. `PostCategory`는 `member` 도메인의 `Role`을 직접 참조하지 않습니다 — Aggregate 설계 원칙(도메인 간 결합 최소화)에 따라, "관리자 전용인지" 여부만 board 도메인 스스로 표현하고, 실제 작성자의 `Role`과 비교해 작성 가능 여부를 판단하는 책임은 게시글 작성 Command Service(향후 구현 예정)가 집니다.
+- `adminOnly`는 해당 카테고리에 글을 쓸 수 있는 권한이 관리자로 제한되는지를 나타냅니다. `PostCategory`는 `member` 도메인의 `Role`을 직접 참조하지 않습니다 — Aggregate 설계 원칙(도메인 간 결합 최소화)에 따라, "관리자 전용인지" 여부만 board 도메인 스스로 표현하고, 실제 작성자의 `Role`과 비교해 작성 가능 여부를 판단하는 책임은 `PostWriteCommandService`가 집니다. `PostController`가 JWT 권한(`ROLE_ADMIN`)으로 관리자 여부를 판단해 `PostWriteCommand.admin`으로 넘깁니다.
 - `isNotice()`는 게시글 목록 조회 시 공지 상단 고정 정렬과, 공지 최대 노출 개수 제한(아래 설정값 `NOTICE_MAX_COUNT`)을 판단하는 데 사용됩니다.
 - 카테고리명(라벨)이 필요한 응답(`PostListItemResponse.categoryName`)은 QueryDSL 쿼리 단계에서 DB 조인으로 가져오지 않고, `PostMapper`가 `PostCategory.valueOf(코드값).getLabel()`로 변환해 채웁니다. 즉 "원시 데이터(코드값) 조회"와 "표시용 라벨 변환"의 책임이 분리되어 있습니다.
 
@@ -503,8 +510,9 @@ static
  │   ├─ admin
  │   │   ├─ main.html
  │   │   └─ board
- │   │       ├─ list.html
- │   │       └─ main.html
+ │   │       ├─ list.html          # /board
+ │   │       ├─ detail.html        # /board/{id}
+ │   │       └─ write.html         # /board/write, /board/{id}/edit (작성/수정 공용)
  ├─ css
  │   ├─ common.css                # 전역 공통 스타일 (배경, 폼, 버튼 등)
  │   └─ admin
@@ -520,7 +528,12 @@ static
      │   └─ oauth-success.js
      └─ admin
          ├─ admin-layout.js        # 관리자 공통 레이아웃(탑바+사이드바) 주입
-         └─ main.js                # admin/main.html 전용
+         ├─ main.js                # admin/main.html 전용
+         └─ board
+             ├─ board-common.js    # 게시판 공통 (로그인 확인, API 호출, 날짜 포맷)
+             ├─ board-list.js      # 목록 (검색 조건을 URL 쿼리스트링에 유지)
+             ├─ board-detail.js    # 상세, 수정/삭제, 댓글
+             └─ board-write.js     # 작성/수정
 ```
 
 `index.html`만 `static` 루트에 두는 이유는 Spring Boot의 Welcome Page 자동 설정(`static/index.html`을 `/`로 자동 서빙)을 그대로 활용하기 위함입니다. 나머지 화면은 `html/` 폴더 아래 성격별 하위 폴더(`error`, `auth`, `admin`)로 분리합니다. `ViewController.java`가 깔끔한 URL(`/signup`, `/oauth/success`, `/main`)을 실제 파일 경로로 forward합니다.
@@ -578,10 +591,19 @@ admin/*.html
 - 로그인 실패 5회 시 계정 잠금
 
 ### 게시판
-- 게시글 목록 조회 (QueryDSL, 공지 상단 고정, 댓글 수/작성자/카테고리명 표시, 페이지네이션)
-- 게시글 CRUD (목록 외 작성/수정/삭제/상세는 진행 예정)
-- 댓글 CRUD (게시글 Aggregate에 종속, 진행 예정)
-- QueryDSL 기반 검색 / 동적 조건 처리 (목록 조회의 카테고리 필터/키워드 검색에 적용 완료)
+- 게시글 목록 조회 (QueryDSL, 공지 상단 고정, 댓글 수/조회수/작성자/카테고리명 표시, 페이지네이션)
+- 게시글 작성/상세/수정/삭제 (공지는 관리자만, 수정/삭제는 작성자 본인만, 삭제 시 댓글도 soft delete)
+- 댓글 작성/삭제 (게시글 Aggregate에 종속, 삭제는 작성자 본인만)
+- 조회수 (상세 조회 시 원자적 UPDATE로 증가, 수정 화면 진입 시에는 증가하지 않음)
+- QueryDSL 기반 검색 / 동적 조건 처리 (구분 필터, 제목/내용/제목+내용/작성자 검색)
+
+| API | 설명 |
+|---|---|
+| `GET /api/posts?categoryCode=&searchType=&keyword=&page=&size=` | 목록 (searchType: `TITLE`/`CONTENT`/`TITLE_CONTENT`/`AUTHOR`) |
+| `GET /api/posts/categories` | 작성 가능한 구분 (공지는 관리자에게만) |
+| `GET /api/posts/{id}?increaseView=true` | 상세 + 댓글 (`mine`: 내 글 여부) |
+| `POST /api/posts` / `PUT /api/posts/{id}` / `DELETE /api/posts/{id}` | 작성 / 수정 / 삭제 |
+| `POST /api/posts/{id}/comments` / `DELETE /api/posts/{id}/comments/{commentId}` | 댓글 작성 / 삭제 |
 
 ## 인증 / 토큰 전략
 
@@ -852,9 +874,11 @@ GitHub Actions를 통해 push/PR 시 빌드 및 테스트를 자동 실행합니
 - [ ] 설정값 조회/수정 API (Query/Command Service, Controller) - 단건 수정 vs 그룹 단위 일괄 수정 방식 결정 필요
 - [ ] LoginCommandService가 로그인 실패 허용 횟수를 하드코딩 대신 LOGIN_MAX_FAIL_COUNT 설정값에서 읽도록 변경
 - [ ] 관리자 설정 페이지 화면 (좌측 그룹 메뉴 + key-value 입력 폼, ADMIN 전용 접근 제어)
-- [ ] 게시글 상세 API
-- [ ] 게시글 작성/수정/삭제 API (PostCategory.adminOnly 기준 작성 권한 검증 포함)
-- [ ] 댓글 CRUD API
+- [x] 게시글 상세 API
+- [x] 게시글 작성/수정/삭제 API (PostCategory.adminOnly 기준 작성 권한 검증 포함)
+- [x] 댓글 작성/삭제 API
+- [x] 게시판 화면 (목록 실데이터 연동, 상세, 작성/수정)
+- [ ] 댓글 수정
 - [ ] 인증코드 발송 시 이미 가입된 이메일에 대한 안내 처리
 - [ ] Swagger API 문서 보강 (각 API에 어노테이션 추가)
 - [ ] 테스트 코드 작성

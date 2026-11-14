@@ -1,9 +1,14 @@
 package com.hyunsu.springboot.board.domain.repository;
 
+import com.hyunsu.springboot.board.application.query.dto.CommentResult;
+import com.hyunsu.springboot.board.application.query.dto.PostDetailResult;
 import com.hyunsu.springboot.board.application.query.dto.PostListResult;
 import com.hyunsu.springboot.board.application.query.dto.PostSearchCondition;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+
+import java.util.List;
+import java.util.Optional;
 
 /**
  * 게시글 목록 조회 전용 Repository 인터페이스.
@@ -21,4 +26,14 @@ public interface PostQueryRepository {
      * - categoryCode, keyword 는 null 이면 조건에서 제외된다.
      */
     Page<PostListResult> findPostList(PostSearchCondition condition, Pageable pageable);
+
+    /**
+     * 게시글 상세 조회 (작성자명 포함, 댓글 제외). 삭제된 게시글이면 empty.
+     */
+    Optional<PostDetailResult> findPostDetail(Long postId);
+
+    /**
+     * 게시글의 삭제되지 않은 댓글 목록 (작성자명 포함, 작성 순).
+     */
+    List<CommentResult> findComments(Long postId);
 }
