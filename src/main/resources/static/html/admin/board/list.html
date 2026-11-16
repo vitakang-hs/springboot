@@ -52,6 +52,7 @@
 
     <!-- 검색 영역 -->
     <div class="board-search">
+        <label for="searchType" class="sr-only">검색 대상</label>
         <select class="search-select" id="searchType">
             <option value="TITLE_CONTENT">제목+내용</option>
             <option value="TITLE">제목</option>
@@ -59,6 +60,7 @@
             <option value="AUTHOR">작성자</option>
         </select>
         <div class="search-input-wrap">
+            <label for="searchKeyword" class="sr-only">검색어</label>
             <input type="text" class="search-input" id="searchKeyword" placeholder="검색어를 입력하세요">
             <button type="button" class="search-btn" id="searchBtn">검색</button>
         </div>
