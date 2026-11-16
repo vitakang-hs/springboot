@@ -22,12 +22,15 @@
 
     <form class="post-form" id="postForm" novalidate>
         <div class="post-form-row">
+            <label for="category" class="sr-only">게시글 구분</label>
             <select class="search-select post-form-category" id="category" required>
                 <option value="" disabled selected>구분 선택</option>
             </select>
+            <label for="title" class="sr-only">제목</label>
             <input type="text" class="post-form-input" id="title" maxlength="200" placeholder="제목을 입력하세요" required>
         </div>
 
+        <label for="content" class="sr-only">내용</label>
         <textarea class="post-form-textarea" id="content" maxlength="20000" placeholder="내용을 입력하세요" required></textarea>
         <div class="post-form-hint"><span id="contentLength">0</span> / 20,000</div>
 
