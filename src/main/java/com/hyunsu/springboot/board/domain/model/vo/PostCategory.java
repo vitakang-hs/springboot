@@ -2,6 +2,9 @@ package com.hyunsu.springboot.board.domain.model.vo;
 
 import lombok.Getter;
 
+import java.util.Arrays;
+import java.util.Optional;
+
 /**
  * 게시글 카테고리.
  *
@@ -37,5 +40,15 @@ public enum PostCategory {
      */
     public boolean isNotice() {
         return this == NOTICE;
+    }
+
+    /**
+     * 코드값(name)으로 카테고리를 찾는다. 존재하지 않는 코드면 empty.
+     * (valueOf는 잘못된 값에 IllegalArgumentException을 던지므로, 사용자 입력 검증에는 이 메서드를 쓴다)
+     */
+    public static Optional<PostCategory> fromCode(String code) {
+        return Arrays.stream(values())
+                .filter(category -> category.name().equals(code))
+                .findFirst();
     }
 }

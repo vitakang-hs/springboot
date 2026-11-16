@@ -14,9 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class PostListQueryService {
 
-    //private final PostQueryRepository postQueryRepository;
+    private final PostQueryRepository postQueryRepository;
 
     public Page<PostListResult> getPostList(PostSearchCondition condition, Pageable pageable) {
-        return null;//postQueryRepository.findPostList(condition, pageable);
+        return postQueryRepository.findPostList(condition, pageable);
     }
 }

@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.GetMapping;
  *   static/auth/oauth-success.html
  *   static/admin/main.html
  *   static/admin/board/list.html
+ *   static/admin/board/detail.html
+ *   static/admin/board/write.html   (작성/수정 공용)
  */
 @Controller
 public class ViewController {
@@ -39,6 +41,27 @@ public class ViewController {
     @GetMapping("/board")
     public String boardList() {
         return "forward:/html/admin/board/list.html";
+    }
+
+    /**
+     * 게시글 작성. 수정(/board/{id}/edit)과 같은 화면을 쓰며, write.js가 URL로 모드를 구분한다.
+     */
+    @GetMapping("/board/write")
+    public String boardWrite() {
+        return "forward:/html/admin/board/write.html";
+    }
+
+    /**
+     * 게시글 상세. {postId}는 숫자만 매칭해 /board/write 같은 경로와 겹치지 않게 한다.
+     */
+    @GetMapping("/board/{postId:\\d+}")
+    public String boardDetail() {
+        return "forward:/html/admin/board/detail.html";
+    }
+
+    @GetMapping("/board/{postId:\\d+}/edit")
+    public String boardEdit() {
+        return "forward:/html/admin/board/write.html";
     }
 
     @GetMapping("/error/404")

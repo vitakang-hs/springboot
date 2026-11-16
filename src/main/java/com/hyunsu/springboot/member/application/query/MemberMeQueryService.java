@@ -28,6 +28,6 @@ public class MemberMeQueryService {
 
         String decryptedEmail = aesGcmCryptoService.decrypt(member.getEmail());
 
-        return new MemberMeResponse(member.getId(), member.getUsername(), decryptedEmail);
+        return new MemberMeResponse(member.getId(), member.getUsername(), decryptedEmail, member.getRole().name());
     }
 }

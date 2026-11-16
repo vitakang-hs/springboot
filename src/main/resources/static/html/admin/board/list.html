@@ -19,6 +19,14 @@
         <h2 class="board-title">커뮤니티</h2>
     </div>
 
+    <!-- 구분 탭: board-list.js가 /api/posts?categoryCode= 로 필터링 -->
+    <div class="board-tabs" id="categoryTabs">
+        <button type="button" class="board-tab board-tab--active" data-category="">전체</button>
+        <button type="button" class="board-tab" data-category="NOTICE">공지</button>
+        <button type="button" class="board-tab" data-category="FREE">자유</button>
+        <button type="button" class="board-tab" data-category="QNA">질문</button>
+    </div>
+
     <div class="board-wrap">
         <!-- 테이블 헤더 -->
         <div class="board-row board-row--head">
@@ -29,55 +37,9 @@
             <span class="col-views">조회</span>
         </div>
 
-        <!-- 공지 행 -->
-        <div class="board-row board-row--notice">
-            <span class="col-category">
-                <span class="badge badge--notice">공지</span>
-            </span>
-            <span class="col-title">
-                <a href="/board/1" class="post-title">서비스 이용 안내입니다</a>
-            </span>
-            <span class="col-author">admin</span>
-            <span class="col-date">2026.06.20</span>
-            <span class="col-views">312</span>
-        </div>
-
-        <!-- 일반 행 -->
-        <div class="board-row">
-            <span class="col-category">
-                <span class="badge badge--free">일반</span>
-            </span>
-            <span class="col-title">
-                <a href="/board/5" class="post-title">첫 번째 게시글입니다 <span class="comment-count">[3]</span></a>
-            </span>
-            <span class="col-author">vitakang</span>
-            <span class="col-date">2026.06.21</span>
-            <span class="col-views">42</span>
-        </div>
-
-        <div class="board-row">
-            <span class="col-category">
-                <span class="badge badge--free">일반</span>
-            </span>
-            <span class="col-title">
-                <a href="/board/4" class="post-title">두 번째 게시글</a>
-            </span>
-            <span class="col-author">user01</span>
-            <span class="col-date">2026.06.21</span>
-            <span class="col-views">18</span>
-        </div>
-
-        <div class="board-row">
-            <span class="col-category">
-                <span class="badge badge--free">일반</span>
-            </span>
-            <span class="col-title">
-                <a href="/board/3" class="post-title">세 번째 게시글 <span class="comment-count">[1]</span></a>
-            </span>
-            <span class="col-author">vitakang</span>
-            <span class="col-date">2026.06.20</span>
-            <span class="col-views">7</span>
-        </div>
+        <!-- 게시글 행: board-list.js가 채운다 -->
+        <div id="postRows"></div>
+        <div class="board-empty" id="emptyMessage" hidden>게시글이 없습니다.</div>
     </div>
 
     <!-- 글쓰기 버튼 -->
@@ -85,22 +47,16 @@
         <button type="button" class="btn-write" id="writeBtn">글쓰기</button>
     </div>
 
-    <!-- 페이지네이션 -->
-    <div class="board-pagination">
-        <button type="button" class="page-btn page-btn--prev" disabled>&lt;</button>
-        <button type="button" class="page-btn page-btn--active">1</button>
-        <button type="button" class="page-btn">2</button>
-        <button type="button" class="page-btn">3</button>
-        <button type="button" class="page-btn page-btn--next">&gt;</button>
-    </div>
+    <!-- 페이지네이션: board-list.js가 채운다 -->
+    <div class="board-pagination" id="pagination"></div>
 
     <!-- 검색 영역 -->
     <div class="board-search">
         <select class="search-select" id="searchType">
-            <option value="title">제목</option>
-            <option value="content">내용</option>
-            <option value="title_content">제목+내용</option>
-            <option value="author">작성자</option>
+            <option value="TITLE_CONTENT">제목+내용</option>
+            <option value="TITLE">제목</option>
+            <option value="CONTENT">내용</option>
+            <option value="AUTHOR">작성자</option>
         </select>
         <div class="search-input-wrap">
             <input type="text" class="search-input" id="searchKeyword" placeholder="검색어를 입력하세요">
@@ -109,9 +65,11 @@
     </div>
 </main>
 
+<script src="/js/common/modal.js"></script>
 <script src="/js/common/common.js"></script>
 <script src="/js/common/background.js"></script>
 <script src="/js/admin/admin-layout.js"></script>
+<script src="/js/admin/board/board-common.js"></script>
 <script src="/js/admin/board/board-list.js"></script>
 </body>
 </html>

@@ -16,6 +16,7 @@ public record PostListItemResponse(
         String title,
         String authorUsername,
         long commentCount,
+        int viewCount,
         boolean isNotice,
         LocalDateTime createdAt
 ) {}

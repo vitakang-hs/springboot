@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>글쓰기 - hyunsu-delveloper</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/admin/admin-layout.css">
+    <link rel="stylesheet" href="/css/admin/board.css">
+</head>
+<body>
+
+<canvas id="background"></canvas>
+
+<div id="adminLayout"></div>
+
+<!-- 작성(/board/write)과 수정(/board/{id}/edit)이 같은 화면을 쓴다. board-write.js가 URL로 모드를 구분 -->
+<main class="admin-content">
+    <div class="board-header">
+        <h2 class="board-title" id="pageTitle">글쓰기</h2>
+    </div>
+
+    <form class="post-form" id="postForm" novalidate>
+        <div class="post-form-row">
+            <select class="search-select post-form-category" id="category" required>
+                <option value="" disabled selected>구분 선택</option>
+            </select>
+            <input type="text" class="post-form-input" id="title" maxlength="200" placeholder="제목을 입력하세요" required>
+        </div>
+
+        <textarea class="post-form-textarea" id="content" maxlength="20000" placeholder="내용을 입력하세요" required></textarea>
+        <div class="post-form-hint"><span id="contentLength">0</span> / 20,000</div>
+
+        <div class="post-form-actions">
+            <button type="button" class="btn-ghost" id="cancelBtn">취소</button>
+            <button type="submit" class="btn-write" id="submitBtn">등록</button>
+        </div>
+    </form>
+</main>
+
+<script src="/js/common/modal.js"></script>
+<script src="/js/common/common.js"></script>
+<script src="/js/common/background.js"></script>
+<script src="/js/admin/admin-layout.js"></script>
+<script src="/js/admin/board/board-common.js"></script>
+<script src="/js/admin/board/board-write.js"></script>
+</body>
+</html>

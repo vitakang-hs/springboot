@@ -5,11 +5,13 @@ package com.hyunsu.springboot.board.application.query.dto;
  * null 인 필드는 조건에서 제외된다 (QueryDSL where 절에서 null-safe 처리).
  */
 public record PostSearchCondition(
-        String categoryCode,  // null 이면 전체 카테고리
-        String keyword        // null 이면 검색 없음 (제목+내용 OR 검색)
+        String categoryCode,       // null 이면 전체 카테고리
+        PostSearchType searchType, // 검색 대상 (keyword가 있을 때만 의미 있음)
+        String keyword             // null 이면 검색 없음
 ) {
-    public static PostSearchCondition of(String categoryCode, String keyword) {
-        String trimmedKeyword = (keyword != null && keyword.isBlank()) ? null : keyword;
-        return new PostSearchCondition(categoryCode, trimmedKeyword);
+    public static PostSearchCondition of(String categoryCode, String searchType, String keyword) {
+        String trimmedCategory = (categoryCode != null && categoryCode.isBlank()) ? null : categoryCode;
+        String trimmedKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
+        return new PostSearchCondition(trimmedCategory, PostSearchType.fromOrDefault(searchType), trimmedKeyword);
     }
 }

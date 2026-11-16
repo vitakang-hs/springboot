@@ -21,10 +21,10 @@ import java.time.LocalDateTime;
  *
  * post 테이블과 1:1 매핑. Comment는 이 Aggregate에 종속되지만,
  * 별도 CommentRepository를 통해 직접 저장한다.
- * (MemberHistory/MemberOAuth와 같은 패턴)
+ * (게시글 존재 여부/삭제 시 댓글 동반 삭제 같은 불변식은 board.application의 Command Service가 지킨다)
  *
- * category는 code 테이블의 POST_CATEGORY 그룹 코드값(예: NOTICE, FREE)을 저장.
- * DB FK 제약 없이 애플리케이션 레이어에서 유효성을 검증한다.
+ * category는 PostCategory enum의 코드값(name, 예: NOTICE, FREE)을 저장.
+ * DB FK 제약 없이 애플리케이션 레이어(PostWriteCommandService)에서 유효성을 검증한다.
  */
 @Entity
 @Table(name = "post")
@@ -75,7 +75,7 @@ public class Post {
      * 게시글 작성 정적 팩토리.
      *
      * @param memberId 작성자 ID
-     * @param category 게시글 구분 코드 (POST_CATEGORY 그룹의 코드값)
+     * @param category 게시글 구분 코드 (PostCategory.name())
      * @param title    제목
      * @param content  내용
      */
