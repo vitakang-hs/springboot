@@ -14,14 +14,26 @@
         const me = await BoardPage.init();
         if (!me) return;
 
-        // 목록에서 들어왔다면 "목록으로"가 보던 페이지(검색조건 포함)로 돌아가게 한다
-        if (document.referrer.startsWith(window.location.origin + '/board')
-            && !/\/board\/\d+/.test(new URL(document.referrer).pathname)) {
-            document.getElementById('backLink').href = document.referrer;
+        // 목록(/board?검색조건)에서 들어왔다면 "목록으로"가 보던 페이지로 돌아가게 한다.
+        // 글쓰기(/board/write)·수정(/board/{id}/edit)에서 넘어온 경우는 기본값(/board) 그대로 둔다.
+        const backUrl = listUrlFromReferrer();
+        if (backUrl) {
+            document.getElementById('backLink').href = backUrl;
         }
 
         bindEvents();
         await loadPost(true);
+    }
+
+    function listUrlFromReferrer() {
+        if (!document.referrer) return null;
+        try {
+            const referrer = new URL(document.referrer);
+            const isList = referrer.origin === window.location.origin && referrer.pathname === '/board';
+            return isList ? referrer.pathname + referrer.search : null;
+        } catch (e) {
+            return null;
+        }
     }
 
     async function loadPost(increaseView) {
