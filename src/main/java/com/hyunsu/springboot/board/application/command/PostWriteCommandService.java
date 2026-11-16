@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 
 /**
@@ -32,6 +33,7 @@ public class PostWriteCommandService {
 
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
+    private final Clock clock;
 
     /**
      * @return 생성된 게시글 ID
@@ -53,8 +55,9 @@ public class PostWriteCommandService {
     public void delete(Long postId, Long memberId) {
         Post post = findOwnPost(postId, memberId);
 
-        post.delete();
-        commentRepository.softDeleteAllByPostId(postId, LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now(clock);
+        post.delete(now);
+        commentRepository.softDeleteAllByPostId(postId, now);
     }
 
     private Post findOwnPost(Long postId, Long memberId) {

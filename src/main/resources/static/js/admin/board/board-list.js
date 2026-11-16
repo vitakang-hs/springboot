@@ -10,7 +10,7 @@
 
     const { el, formatDate, badgeClass } = BoardPage;
 
-    init();
+    init().catch(err => console.error(err));
 
     async function init() {
         const me = await BoardPage.init();

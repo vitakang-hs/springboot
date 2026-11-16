@@ -41,10 +41,16 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http) {
         http
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .csrf(AbstractHttpConfigurer::disable)
+                // CSRF 보호 비활성화 - 검토 완료, 안전함:
+                //  - API 인증은 쿠키가 아닌 Authorization: Bearer 헤더(JS가 직접 첨부)로 한다.
+                //    브라우저가 다른 사이트의 요청에 이 헤더를 자동으로 붙이지 않으므로 CSRF가 성립하지 않는다.
+                //  - 쿠키를 쓰는 유일한 API(/api/auth/reissue)의 Refresh Token 쿠키는 SameSite=Strict라
+                //    다른 사이트에서 시작된 요청에는 쿠키가 실리지 않는다.
+                //  - 세션을 쓰지 않는다 (STATELESS).
+                .csrf(AbstractHttpConfigurer::disable) // NOSONAR - 위 사유로 검토 완료 (java:S4502)
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 )

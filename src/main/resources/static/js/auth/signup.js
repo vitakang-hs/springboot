@@ -24,9 +24,12 @@
     const PASSWORD_MIN_LENGTH = 6;
     const CODE_VALID_SECONDS = 180; // 3분
     const RESEND_COOLDOWN_SECONDS = 60;
-    const EMAIL_CODE_REGEX = /^[0-9]{6}$/;
+    const EMAIL_CODE_REGEX = /^\d{6}$/;
 
-    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // 로컬파트@도메인.최상위도메인 형식. 각 조각이 '.'을 포함하지 않도록 나눠 정의해
+    // 어떤 입력에서도 정규식 엔진이 되돌아가며(backtracking) 느려지지 않게 한다 (ReDoS 방지).
+    // (이전: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ - 도메인 부분의 '.' 위치를 여러 갈래로 시도해 입력 길이에 따라 급격히 느려질 수 있었음)
+    const EMAIL_REGEX = /^[^\s@.]+(?:\.[^\s@.]+)*@[^\s@.]+(?:\.[^\s@.]+)+$/;
 
     let usernameVerified = false;     // 아이디 중복확인 통과 여부
     let emailCodeIssued = false;      // 인증코드 발송 완료 여부

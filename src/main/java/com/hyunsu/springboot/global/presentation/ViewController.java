@@ -2,6 +2,7 @@ package com.hyunsu.springboot.global.presentation;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 /**
  * 정적 HTML(static)을 깔끔한 URL로 매핑해주는 View Controller.
@@ -30,7 +31,7 @@ public class ViewController {
     }
 
     @GetMapping("/main")
-    public String main() {
+    public String mainPage() {
         return "forward:/html/admin/main.html";
     }
 
@@ -55,12 +56,14 @@ public class ViewController {
      * 게시글 상세. {postId}는 숫자만 매칭해 /board/write 같은 경로와 겹치지 않게 한다.
      */
     @GetMapping("/board/{postId:\\d+}")
-    public String boardDetail() {
+    public String boardDetail(@PathVariable("postId") Long postId) {
+        // postId는 화면(board-detail.js)이 URL에서 직접 읽는다. 여기서는 숫자 경로만 매칭되도록 받기만 한다.
         return "forward:/html/admin/board/detail.html";
     }
 
     @GetMapping("/board/{postId:\\d+}/edit")
-    public String boardEdit() {
+    public String boardEdit(@PathVariable("postId") Long postId) {
+        // postId는 화면(board-write.js)이 URL에서 직접 읽는다.
         return "forward:/html/admin/board/write.html";
     }
 

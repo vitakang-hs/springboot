@@ -68,7 +68,9 @@ class MemberRegisterCommandServiceTest {
     void register_tokenExpired() {
         given(emailVerifier.findVerifiedEmail(TOKEN)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.register(command(EMAIL, TOKEN)))
+        MemberRegisterCommand registerCommand = command(EMAIL, TOKEN);
+
+        assertThatThrownBy(() -> service.register(registerCommand))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.EMAIL_VERIFICATION_EXPIRED);
 
@@ -80,7 +82,9 @@ class MemberRegisterCommandServiceTest {
     void register_emailMismatch() {
         given(emailVerifier.findVerifiedEmail(TOKEN)).willReturn(Optional.of("attacker@example.com"));
 
-        assertThatThrownBy(() -> service.register(command(EMAIL, TOKEN)))
+        MemberRegisterCommand registerCommand = command(EMAIL, TOKEN);
+
+        assertThatThrownBy(() -> service.register(registerCommand))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.EMAIL_NOT_VERIFIED);
 
@@ -94,7 +98,9 @@ class MemberRegisterCommandServiceTest {
         given(emailVerifier.findVerifiedEmail(TOKEN)).willReturn(Optional.of(EMAIL));
         given(memberRepository.existsByUsername("tester")).willReturn(true);
 
-        assertThatThrownBy(() -> service.register(command(EMAIL, TOKEN)))
+        MemberRegisterCommand registerCommand = command(EMAIL, TOKEN);
+
+        assertThatThrownBy(() -> service.register(registerCommand))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.USERNAME_DUPLICATED);
 

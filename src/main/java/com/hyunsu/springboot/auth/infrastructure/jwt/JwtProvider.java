@@ -6,11 +6,12 @@ import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Date;
 
 import lombok.Getter;
@@ -21,10 +22,9 @@ import lombok.Getter;
  * Access Token payload에는 최소 정보(memberId, role)만 담는다.
  * 이메일 등 개인정보는 절대 넣지 않는다.
  */
+@Slf4j
 @Component
 public class JwtProvider {
-
-    private static final Logger log = LoggerFactory.getLogger(JwtProvider.class);
 
     private static final String CLAIM_MEMBER_ID = "memberId";
     private static final String CLAIM_ROLE = "role";
@@ -42,27 +42,30 @@ public class JwtProvider {
     }
 
     public String createAccessToken(Long memberId, String role) {
-        Date now = new Date();
-        Date expiry = new Date(now.getTime() + accessTokenValidityMillis);
+        // 시각 계산은 java.time.Instant로 하고, jjwt API가 요구하는 Date로는 마지막에만 변환한다
+        Instant now = Instant.now();
+        Date issuedAt = Date.from(now);
+        Date expiry = Date.from(now.plus(Duration.ofMillis(accessTokenValidityMillis)));
 
         return Jwts.builder()
                 .subject(String.valueOf(memberId))
                 .claim(CLAIM_MEMBER_ID, memberId)
                 .claim(CLAIM_ROLE, role)
-                .issuedAt(now)
+                .issuedAt(issuedAt)
                 .expiration(expiry)
                 .signWith(secretKey)
                 .compact();
     }
 
     public String createRefreshToken(Long memberId) {
-        Date now = new Date();
-        Date expiry = new Date(now.getTime() + refreshTokenValidityMillis);
+        Instant now = Instant.now();
+        Date issuedAt = Date.from(now);
+        Date expiry = Date.from(now.plus(Duration.ofMillis(refreshTokenValidityMillis)));
 
         return Jwts.builder()
                 .subject(String.valueOf(memberId))
                 .claim(CLAIM_MEMBER_ID, memberId)
-                .issuedAt(now)
+                .issuedAt(issuedAt)
                 .expiration(expiry)
                 .signWith(secretKey)
                 .compact();

@@ -10,6 +10,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
+
 /**
  * 댓글 작성/삭제 Command 처리.
  *
@@ -23,6 +26,7 @@ public class CommentWriteCommandService {
 
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
+    private final Clock clock;
 
     /**
      * @return 생성된 댓글 ID
@@ -42,6 +46,6 @@ public class CommentWriteCommandService {
         if (!comment.isOwner(memberId)) {
             throw new CustomException(ErrorCode.COMMENT_FORBIDDEN);
         }
-        comment.delete();
+        comment.delete(LocalDateTime.now(clock));
     }
 }
