@@ -6,22 +6,24 @@ import com.hyunsu.springboot.board.domain.repository.CommentRepository;
 import com.hyunsu.springboot.board.domain.repository.PostRepository;
 import com.hyunsu.springboot.global.exception.CustomException;
 import com.hyunsu.springboot.global.exception.ErrorCode;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -32,9 +34,17 @@ class PostWriteCommandServiceTest {
     private static final Long WRITER = 1L;
     private static final Long OTHER = 2L;
 
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 16, 12, 0);
+
     @Mock PostRepository postRepository;
     @Mock CommentRepository commentRepository;
-    @InjectMocks PostWriteCommandService service;
+    PostWriteCommandService service;
+
+    @BeforeEach
+    void setUp() {
+        Clock fixedClock = Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
+        service = new PostWriteCommandService(postRepository, commentRepository, fixedClock);
+    }
 
     private PostWriteCommand command(Long writerId, boolean admin, String category) {
         return new PostWriteCommand(writerId, admin, category, "제목", "내용");
@@ -67,7 +77,9 @@ class PostWriteCommandServiceTest {
     @Test
     @DisplayName("일반 회원은 공지를 작성할 수 없다")
     void create_notice_byUser_forbidden() {
-        assertThatThrownBy(() -> service.create(command(WRITER, false, "NOTICE")))
+        PostWriteCommand notice = command(WRITER, false, "NOTICE");
+
+        assertThatThrownBy(() -> service.create(notice))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.POST_CATEGORY_ADMIN_ONLY);
         verify(postRepository, never()).save(any());
@@ -86,7 +98,9 @@ class PostWriteCommandServiceTest {
     @Test
     @DisplayName("존재하지 않는 구분 코드로는 작성할 수 없다")
     void create_invalidCategory() {
-        assertThatThrownBy(() -> service.create(command(WRITER, false, "UNKNOWN")))
+        PostWriteCommand unknown = command(WRITER, false, "UNKNOWN");
+
+        assertThatThrownBy(() -> service.create(unknown))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.POST_CATEGORY_INVALID);
     }
@@ -110,7 +124,9 @@ class PostWriteCommandServiceTest {
         Post post = savedPost(10L, WRITER, "FREE");
         given(postRepository.findActiveById(10L)).willReturn(Optional.of(post));
 
-        assertThatThrownBy(() -> service.update(10L, command(OTHER, false, "FREE")))
+        PostWriteCommand byOther = command(OTHER, false, "FREE");
+
+        assertThatThrownBy(() -> service.update(10L, byOther))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.POST_FORBIDDEN);
         assertThat(post.getTitle()).isEqualTo("기존 제목");
@@ -121,7 +137,9 @@ class PostWriteCommandServiceTest {
     void update_notFound() {
         given(postRepository.findActiveById(10L)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.update(10L, command(WRITER, false, "FREE")))
+        PostWriteCommand update = command(WRITER, false, "FREE");
+
+        assertThatThrownBy(() -> service.update(10L, update))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.POST_NOT_FOUND);
     }
@@ -135,7 +153,8 @@ class PostWriteCommandServiceTest {
         service.delete(10L, WRITER);
 
         assertThat(post.isDeleted()).isTrue();
-        verify(commentRepository).softDeleteAllByPostId(eq(10L), any());
+        assertThat(post.getDeletedAt()).isEqualTo(NOW);
+        verify(commentRepository).softDeleteAllByPostId(10L, NOW);
     }
 
     @Test

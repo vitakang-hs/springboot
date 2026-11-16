@@ -5,6 +5,7 @@ import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 /**
  * 모든 API 응답을 감싸는 공통 포맷.
@@ -35,7 +36,8 @@ public class ApiResponse<T> {
         this.data = data;
         this.message = message;
         this.code = code;
-        this.timestamp = LocalDateTime.now();
+        // 정적 팩토리로 생성되는 값 객체라 Clock 빈을 주입받을 수 없어, 기준 시간대(서버 기본)를 명시한다
+        this.timestamp = LocalDateTime.now(ZoneId.systemDefault());
     }
 
     // ===== 성공 응답 =====

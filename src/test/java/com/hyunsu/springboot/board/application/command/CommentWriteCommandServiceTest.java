@@ -7,13 +7,16 @@ import com.hyunsu.springboot.board.domain.repository.CommentRepository;
 import com.hyunsu.springboot.board.domain.repository.PostRepository;
 import com.hyunsu.springboot.global.exception.CustomException;
 import com.hyunsu.springboot.global.exception.ErrorCode;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,9 +29,17 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class CommentWriteCommandServiceTest {
 
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 16, 12, 0);
+
     @Mock PostRepository postRepository;
     @Mock CommentRepository commentRepository;
-    @InjectMocks CommentWriteCommandService service;
+    CommentWriteCommandService service;
+
+    @BeforeEach
+    void setUp() {
+        Clock fixedClock = Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
+        service = new CommentWriteCommandService(postRepository, commentRepository, fixedClock);
+    }
 
     @Test
     @DisplayName("살아있는 게시글에는 댓글을 작성할 수 있다")
@@ -46,7 +57,9 @@ class CommentWriteCommandServiceTest {
     void create_postNotFound() {
         given(postRepository.findActiveById(10L)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.create(new CommentCreateCommand(10L, 2L, "댓글")))
+        CommentCreateCommand command = new CommentCreateCommand(10L, 2L, "댓글");
+
+        assertThatThrownBy(() -> service.create(command))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.POST_NOT_FOUND);
         verify(commentRepository, never()).save(any());
@@ -61,6 +74,7 @@ class CommentWriteCommandServiceTest {
         service.delete(10L, 5L, 2L);
 
         assertThat(comment.isDeleted()).isTrue();
+        assertThat(comment.getDeletedAt()).isEqualTo(NOW);
     }
 
     @Test

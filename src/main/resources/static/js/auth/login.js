@@ -8,7 +8,7 @@
     // 이미 로그인된 상태(Refresh Token이 아직 유효함)라면, 로그인 폼을 보여줄 필요 없이
     // 바로 메인으로 보낸다. 새 탭이나 새로고침으로 인해 window.__accessToken은 비어있을 수
     // 있으므로, 토큰 재발급(tryReissue)으로 실제 로그인 여부를 확인한다.
-    redirectIfAlreadyLoggedIn();
+    redirectIfAlreadyLoggedIn().catch(err => console.error(err));
 
     async function redirectIfAlreadyLoggedIn() {
         const reissued = await tryReissue();
@@ -72,7 +72,7 @@
                 return;
             }
 
-            // TODO: 다른 소셜 로그인 제공자(카카오 등) 추가 시 분기 지점
+            // 현재는 구글만 지원한다. 다른 소셜 로그인 제공자(카카오 등)를 추가할 때 이 위치에서 분기한다.
             console.log('social login click (not implemented yet):', provider);
         });
     });

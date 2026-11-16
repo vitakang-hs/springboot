@@ -17,7 +17,7 @@
 
     let dirty = false; // 작성 중 이탈 경고용
 
-    init();
+    init().catch(err => console.error(err));
 
     async function init() {
         const me = await BoardPage.init();

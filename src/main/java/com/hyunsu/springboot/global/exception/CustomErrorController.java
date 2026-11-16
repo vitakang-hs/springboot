@@ -7,6 +7,7 @@ import org.springframework.boot.webmvc.error.ErrorController;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.ModelAndView;
 
@@ -28,7 +29,12 @@ public class CustomErrorController implements ErrorController {
     private static final String ERROR_PATH = "/error";
     private static final String API_PATH_PREFIX = "/api";
 
-    @RequestMapping(ERROR_PATH)
+    // /error는 원래 요청이 GET이든 POST/PUT/DELETE든 그 요청에서 난 에러를 모두 받아야 한다.
+    // 특정 메서드만 지정하면 그 외 메서드 요청의 에러가 405로 바뀌어버리므로, 모든 메서드를 명시적으로 허용한다.
+    @RequestMapping(value = ERROR_PATH, method = {
+            RequestMethod.GET, RequestMethod.HEAD, RequestMethod.POST, RequestMethod.PUT,
+            RequestMethod.PATCH, RequestMethod.DELETE, RequestMethod.OPTIONS
+    })
     public Object handleError(HttpServletRequest request) {
         Object statusAttr = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
         HttpStatus status = (statusAttr != null)

@@ -8,7 +8,7 @@
     const { el, formatDate, badgeClass } = BoardPage;
     const postId = window.location.pathname.split('/')[2];
 
-    init();
+    init().catch(err => console.error(err));
 
     async function init() {
         const me = await BoardPage.init();

@@ -43,7 +43,7 @@
     padding: 7px 16px;
     border: none;
     border-radius: 12px;
-    background: linear-gradient(135deg, #8b7fd1, #5d4fb8);
+    background: linear-gradient(135deg, #7567c8, #5d4fb8);
     color: #fff;
     font-size: 13px;
     font-weight: 600;
@@ -90,12 +90,12 @@
 }
 
 .admin-menu-item:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: #181622; /* = rgba(255,255,255,0.06) over 사이드바 */
     color: #ffffff;
 }
 
 .admin-menu-item.active {
-    background: rgba(139, 127, 209, 0.22);
+    background: #26213e; /* = rgba(139,127,209,0.22) over 사이드바 */
     color: #ffffff;
 }
 
@@ -115,4 +115,11 @@
     z-index: 5;
     margin-left: 200px;
     padding: 96px 40px 40px;
+}
+
+/* 동작 줄이기: 버튼 눌림 이동 애니메이션 끔 */
+@media (prefers-reduced-motion: reduce) {
+    .btn-logout {
+        transition: none;
+    }
 }

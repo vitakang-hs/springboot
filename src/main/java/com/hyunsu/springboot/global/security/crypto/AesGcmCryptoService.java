@@ -1,7 +1,7 @@
 package com.hyunsu.springboot.global.security.crypto;
 
 import com.hyunsu.springboot.global.config.properties.CryptoProperties;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKeyFactory;
@@ -15,7 +15,7 @@ import java.util.Base64;
 /**
  * AES-GCM 양방향 암호화/복호화 유틸.
  */
-@Component
+@Service
 public class AesGcmCryptoService {
 
     private static final String ALGORITHM = "AES";

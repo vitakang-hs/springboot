@@ -21,8 +21,8 @@ async function fetchWithAuth(url, options = {}) {
     if (!reissued) {
         Modal.alert('로그인이 만료되었습니다. 다시 로그인해 주세요.');
         window.location.href = '/';
-        // 호출부에서 더 이상 처리하지 않도록 reject
-        return Promise.reject(new Error('인증이 만료되어 재로그인이 필요합니다.'));
+        // 호출부에서 더 이상 처리하지 않도록 예외를 던진다 (async 함수라 reject된 Promise가 된다)
+        throw new Error('인증이 만료되어 재로그인이 필요합니다.');
     }
 
     // 새 토큰으로 원래 요청 재시도
@@ -63,6 +63,10 @@ async function tryReissue() {
         window.__accessToken = result.data.accessToken;
         return true;
     } catch (err) {
+        // 네트워크 오류 등으로 재발급 요청 자체가 실패한 경우.
+        // 호출부는 "로그인되지 않은 상태"와 똑같이 처리하면 되므로(로그인 페이지 유지/이동),
+        // 예외를 다시 던지지 않고 false를 반환한다. 원인 파악을 위해 콘솔에만 남긴다.
+        console.warn('토큰 재발급 요청 실패:', err);
         return false;
     }
 }

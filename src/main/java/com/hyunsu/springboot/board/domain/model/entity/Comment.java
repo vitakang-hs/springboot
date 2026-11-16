@@ -69,8 +69,11 @@ public class Comment {
         this.content = content;
     }
 
-    public void delete() {
-        this.deletedAt = LocalDateTime.now();
+    /**
+     * soft delete. 현재 시각은 호출하는 Service가 Clock으로 구해 넘긴다 (엔티티는 Clock을 주입받지 않음).
+     */
+    public void delete(LocalDateTime deletedAt) {
+        this.deletedAt = deletedAt;
     }
 
     public boolean isDeleted() {
